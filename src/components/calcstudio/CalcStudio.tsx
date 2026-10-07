@@ -17,12 +17,11 @@ import { EquipmentManager } from "./EquipmentManager";
 import { circuitTags } from "@/lib/calc/equipment";
 import { auditPanel } from "@/lib/calc/audit";
 import { exportPanelDXF } from "@/lib/calc/dxf";
+import { Button } from "@/components/ui/button";
+import { Plus, X } from "lucide-react";
+import { WorkspaceSidebar, WorkspaceToolbar, ActionMenu, CircuitProtection, DiagramCircuitList } from "./WorkspaceControls";
 
 type View = "circuitos" | "diferenciais" | "equipamento" | "unifilar" | "frontal" | "curvas" | "auditoria" | "cosphi";
-const VIEWS: { v: View; label: string }[] = [
-  { v: "circuitos", label: "📋 Circuitos" }, { v: "diferenciais", label: "🛡 Diferenciais" }, { v: "equipamento", label: "🎛 Equipamento" }, { v: "unifilar", label: "〰 Unifilar" }, { v: "frontal", label: "▦ Frontal DIN" },
-  { v: "curvas", label: "📈 Curvas I-t" }, { v: "auditoria", label: "✅ Auditoria" }, { v: "cosphi", label: "⚡ Condensadores" },
-];
 
 const CIRCUIT_TYPES: CircuitType[] = ["Iluminacao", "Tomadas", "AC", "Termoacumulador", "PlacaCozinha", "UAC", "QuadroParcial"];
 const SCENARIOS: { v: InstallScenario; label: string }[] = [
@@ -59,12 +58,17 @@ export default function CalcStudio() {
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
-  const [showPanelMgr, setShowPanelMgr] = useState(true);
+  const [showPanelMgr, setShowPanelMgr] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showCircuitForm, setShowCircuitForm] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showObra, setShowObra] = useState(false);
   const [showConduit, setShowConduit] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
-  const [view, setView] = useState<View>("circuitos");
+  const [view, setView] = useState<View>("unifilar");
   const [selIds, setSelIds] = useState<Set<string>>(new Set());
   const nameInputRef = useRef<HTMLInputElement>(null);
   const focusName = () => requestAnimationFrame(() => { nameInputRef.current?.focus(); nameInputRef.current?.select(); });
@@ -127,10 +131,12 @@ export default function CalcStudio() {
       phase: d.phase,
     }));
     setSelectedCircuitId(null);
+    setShowCircuitForm(false);
     focusName();
   }
 
   function editCircuit(c: Circuit) {
+    setShowCircuitForm(true);
     setDraft({
       id: c.id, name: c.name,
       power: String(c.power >= 1000 ? c.power / 1000 : c.power),
@@ -364,46 +370,30 @@ const totals = useMemo(() => {
   if (!panel) return <div className="p-8">A carregar…</div>;
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      {/* ===== HEADER FIXO ===== */}
-      <header className="sticky top-0 z-30 border-b border-border bg-[color:var(--surface-1)]/95 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 px-4 py-2">
-          <div onDoubleClick={() => setShowConduit(true)} title="PLUGTECH CalcStudio" className="cursor-pointer select-none">
-            {logoDataUrl
-              ? <img src={logoDataUrl} alt="PLUGTECH CalcStudio" className="h-9 w-9 rounded" />
-              : <LogoST size={36} />}
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <label className="text-xs text-muted-foreground">Quadro:</label>
-            <select
-              value={panel.id}
-              onChange={e => setState(s => ({ ...s, activePanelId: e.target.value }))}
-              className="rounded-md border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
-            >
-              {state.panels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <button onClick={createNewPanel} className="rounded-md bg-[color:var(--brand-green)] px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:brightness-110">+ Novo Quadro</button>
-            <button onClick={deletePanel} className="rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">Eliminar</button>
-            <button onClick={() => setShowPanelMgr(s => !s)} title="Configuração do quadro" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">⚙</button>
-            
-            <button onClick={() => setShowConduit(true)} title="Calculadora de secção de tubagem" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">Tubagem</button>
-            <button onClick={() => setShowObra(true)} title="Dados da obra e responsável" className="rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">📋 Obra</button>
-            <button onClick={newProject} title="Criar um projeto novo do zero" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">🆕 Novo Projeto</button>
-            <button onClick={() => saveProjectFile(state)} title="Guardar projeto em ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">💾 Guardar</button>
-            <button onClick={() => fileInputRef.current?.click()} title="Abrir projeto de ficheiro" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">📂 Abrir</button>
-            <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden" onChange={handleOpenFile} />
-            <button onClick={() => importInputRef.current?.click()} title="Importar quadros e circuitos de Excel/CSV" className="rounded-md border border-[color:var(--brand-green)]/60 px-3 py-1.5 text-sm text-[color:var(--brand-green)] hover:bg-[color:var(--brand-green)]/10">📥 Importar Excel/CSV</button>
-            <button onClick={downloadImportTemplate} title="Descarregar ficheiro modelo para preencher" className="rounded-md border border-border px-2 py-1.5 text-sm hover:bg-[color:var(--surface-2)]">Modelo</button>
-            <input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv,text/csv" className="hidden" onChange={handleImportSheet} />
-            <button onClick={() => exportCSV(panel)} className="rounded-md border border-[color:var(--brand-blue)]/50 px-3 py-1.5 text-sm hover:bg-[color:var(--brand-blue)]/10">CSV</button>
-            <button onClick={() => exportPDF(state.panels, panel.id, { logoDataUrl, project: state.project })} className="rounded-md bg-[color:var(--brand-blue)] px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:brightness-110">PDF</button>
-            <button onClick={() => exportPanelDXF(panel, totals.cut, computed)} title="Exportar esquema unifilar e tabela de cargas para AutoCAD (DXF)" className="rounded-md border border-[color:var(--brand-blue)]/50 px-3 py-1.5 text-sm hover:bg-[color:var(--brand-blue)]/10">DXF</button>
-            <button onClick={() => setShowAbout(s => !s)} className="rounded-md border border-border px-2 py-1.5 text-sm">Sobre</button>
-          </div>
-        </div>
-
+    <div className="calc-workspace bg-background text-foreground">
+      <WorkspaceSidebar view={view} onView={v => { setView(v); setShowCircuitForm(false); }} collapsed={sidebarCollapsed} critical={audit.issues.some(x => x.level === "critical")} onAbout={() => setShowAbout(true)} />
+      <div className="workspace-main">
+      <header className="shrink-0 border-b border-border bg-background">
+        <WorkspaceToolbar panelId={panel.id} panels={state.panels} onPanel={id => setState(s => ({ ...s, activePanelId: id }))} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} settingsOpen={showPanelMgr} onSettings={() => setShowPanelMgr(!showPanelMgr)} onSave={() => saveProjectFile(state)}
+          projectActions={[
+            { label: "Novo quadro", run: createNewPanel },
+            { label: "Abrir projeto", run: () => fileInputRef.current?.click() },
+            { label: "Novo projeto", run: newProject },
+            { label: "Dados da obra", run: () => setShowObra(true) },
+            { label: "Importar Excel/CSV", run: () => importInputRef.current?.click() },
+            { label: "Modelo de importação", run: downloadImportTemplate },
+            { label: "Calculadora de tubagem", run: () => setShowConduit(true) },
+            { label: "Eliminar quadro", run: deletePanel, danger: true },
+          ]}
+          exportActions={[
+            { label: "Relatório PDF", run: () => exportPDF(state.panels, panel.id, { logoDataUrl, project: state.project }) },
+            { label: "Esquema e cargas DXF", run: () => exportPanelDXF(panel, totals.cut, computed) },
+            { label: "Tabela CSV", run: () => exportCSV(panel) },
+          ]} />
+        <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden" onChange={handleOpenFile} />
+        <input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv,text/csv" className="hidden" onChange={handleImportSheet} />
         {showPanelMgr && (
-          <div className="border-t border-border bg-[color:var(--surface-2)]/60 px-4 py-3">
+          <div className="workspace-settings border-t border-border bg-surface-1 px-4 py-3">
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_1fr]">
               {/* Topologia vertical: Origem -> Atual */}
               <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
@@ -413,7 +403,7 @@ const totals = useMemo(() => {
                 
                 {/* Linha 1 - Coluna 1 (Superior Esquerda) */}
                 <label className="flex flex-col">
-                  <span className="text-gray-400 font-medium">Origem da Alimentação</span>
+                  <span className="text-muted-foreground font-medium">Origem da Alimentação</span>
                   <select 
                     value={(panel as any).supplyType ?? "Rede"} 
                     onChange={e => updatePanel({ supplyType: e.target.value as "PT" | "Rede" })}
@@ -426,7 +416,7 @@ const totals = useMemo(() => {
 
                 {/* Linha 1 - Coluna 2 (Superior Direita) */}
                 <label className="flex flex-col">
-                  <span className="text-gray-400 font-medium">Quadro de Origem (Montante)</span>
+                  <span className="text-muted-foreground font-medium">Quadro de Origem (Montante)</span>
                   <input
                     type="text"
                     list="origins"
@@ -443,7 +433,7 @@ const totals = useMemo(() => {
 
                 {/* Linha 2 - Coluna 1 (Inferior Esquerda) */}
                 <label className="flex flex-col">
-                  <span className="text-gray-400 font-medium">Icc origem (kA)</span>
+                  <span className="text-muted-foreground font-medium">Icc origem (kA)</span>
                   <select 
                     value={panel.iccOriginKA}
                     onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
@@ -455,7 +445,7 @@ const totals = useMemo(() => {
 
                 {/* Linha 2 - Coluna 2 (Inferior Direita) */}
                 <label className="flex flex-col">
-                  <span className="text-gray-400 font-medium">Sistema</span>
+                  <span className="text-muted-foreground font-medium">Sistema</span>
                   <select 
                     value={panel.phase}
                     onChange={e => updatePanel({ phase: e.target.value as Phase, voltageMono: 230, voltageTri: 400 })}
@@ -540,8 +530,9 @@ const totals = useMemo(() => {
         )}
 
         {/* Formulário horizontal de circuito */}
-        <div className="border-t border-border bg-[color:var(--surface-1)] px-3 py-2">
-          <div className="flex flex-wrap items-end gap-2">
+        {showCircuitForm && <div className="workspace-circuit-form border-t border-border bg-surface-1 px-4 py-4">
+          <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">{draft.id ? "Editar circuito" : "Novo circuito"}</h2><Button size="icon" variant="ghost" aria-label="Fechar formulário" onClick={() => { setShowCircuitForm(false); setDraft(emptyDraft()); setInsertIndex(null); }}><X /></Button></div>
+          <div className="circuit-form-grid">
             <Field label="Nome do Circuito" w="180px">
               <input ref={nameInputRef} autoFocus value={draft.name}
                 onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
@@ -609,26 +600,26 @@ const totals = useMemo(() => {
                 <option value="Mono">Mono</option><option value="Tri">Trifásico</option>
               </select>
             </Field>
-            <button onClick={addOrUpdateCircuit}
+            <Button variant="secondary" onClick={addOrUpdateCircuit}
               className="rounded-md bg-[color:var(--brand-green)] px-4 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110 glow-green">
               {draft.id ? "Atualizar Circuito" : insertIndex !== null ? `+ Inserir na linha ${insertIndex + 1}` : "+ Adicionar Circuito"}
-            </button>
+            </Button>
             {draft.id && (
-              <button onClick={() => { setDraft(emptyDraft()); setSelectedCircuitId(null); }}
-                className="rounded-md border border-border px-3 py-2 text-sm">Cancelar</button>
+              <Button variant="secondary" onClick={() => { setDraft(emptyDraft()); setSelectedCircuitId(null); }}
+                className="rounded-md border border-border px-3 py-2 text-sm">Cancelar</Button>
             )}
             {insertIndex !== null && !draft.id && (
-              <button onClick={() => setInsertIndex(null)}
+              <Button variant="secondary" onClick={() => setInsertIndex(null)}
                 className="rounded-md border border-border px-3 py-2 text-sm" title="Voltar a adicionar no fim da lista">
                 Cancelar inserção
-              </button>
+              </Button>
             )}
-            <button onClick={doBalance}
+            <Button variant="secondary" onClick={doBalance}
               className="ml-auto rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-2 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">
-              ⚡ Equilíbrio de Fases Automático
-            </button>
+              Equilibrar fases
+            </Button>
           </div>
-        </div>
+        </div>}
 
       </header>
 
@@ -638,23 +629,24 @@ const totals = useMemo(() => {
 
 
       {/* ===== TABELA CENTRAL (SCROLL VERTICAL) ===== */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-[color:var(--surface-1)] px-3 py-1.5">
-        {VIEWS.map(t => (
-          <button key={t.v} onClick={() => setView(t.v)}
-            className={`rounded-md px-3 py-1 text-xs font-semibold ${view === t.v ? "bg-[color:var(--brand-green)] text-primary-foreground" : "text-muted-foreground hover:bg-[color:var(--surface-2)]"}`}>
-            {t.label}{t.v === "auditoria" && audit.issues.some(x => x.level === "critical") ? " ●" : ""}
-          </button>
-        ))}
-        <div className="ml-auto"><CircuitTemplates onAdd={addTemplate} /></div>
+      <div className="workspace-view-heading">
+        <div className="min-w-0"><h2 className="truncate text-base font-bold">{({ circuitos: "Circuitos", diferenciais: "Diferenciais", equipamento: "Equipamento", unifilar: "Esquema unifilar", frontal: "Frontal DIN", curvas: "Curvas I-t", auditoria: "Auditoria", cosphi: "Condensadores" })[view]}</h2><span className="text-xs text-muted-foreground">{panel.name} · {computed.length} circuitos · Icc {panelIccKA(panel).toFixed(1)} kA</span></div>
+        {view === "circuitos" && <div className="flex shrink-0 items-center gap-2"><ActionMenu label="Circuitos" actions={[
+          { label: showDetails ? "Colunas essenciais" : "Todas as colunas", run: () => setShowDetails(!showDetails) },
+          { label: "Circuitos prontos", run: () => setShowTemplates(!showTemplates) },
+          { label: "Equilibrar fases", run: doBalance },
+          { label: showInspector ? "Ocultar diagnóstico" : "Mostrar diagnóstico", run: () => setShowInspector(!showInspector) },
+        ]} iconOnly /><Button size="sm" onClick={() => { setDraft(emptyDraft()); setShowCircuitForm(true); focusName(); }}><Plus />Adicionar circuito</Button></div>}
       </div>
+      {view === "circuitos" && showTemplates && <div className="border-b border-border px-4 py-2"><CircuitTemplates onAdd={addTemplate} /></div>}
       {view === "circuitos" && (
         <BatchBar count={selIds.size} onPatch={batchPatch} onDuplicate={batchDuplicate} onDelete={batchDelete} onClear={() => setSelIds(new Set())}
           cableOptions={[...CABLE_TYPES_CU, ...CABLE_TYPES_AL]} scenarios={SCENARIOS} types={CIRCUIT_TYPES} labelType={labelType} />
       )}
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <main className="workspace-content flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         {view !== "circuitos" && (
-          <section className="min-h-0 flex-1 overflow-auto">
-            {view === "unifilar" && <SingleLineDiagram rows={computed} rcds={panel.rcds ?? []} equip={panel.equip ?? {}} tags={circuitTags(panel.equip ?? {})} panelName={panel.name} mainLabel={totals.cut} onPick={c => { editCircuit(c); setView("circuitos"); }} />}
+          <section className={`technical-view min-h-0 min-w-0 flex-1 ${view === "unifilar" ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
+            {view === "unifilar" && <><SingleLineDiagram rows={computed} rcds={panel.rcds ?? []} equip={panel.equip ?? {}} tags={circuitTags(panel.equip ?? {})} panelName={panel.name} mainLabel={totals.cut} onPick={c => { editCircuit(c); setView("circuitos"); }} /><DiagramCircuitList rows={computed} rcds={panel.rcds ?? []} onRcds={rcds => updatePanel({ rcds })} onPick={c => { editCircuit(c); setView("circuitos"); }} onAdd={() => { setView("circuitos"); setDraft(emptyDraft()); setShowCircuitForm(true); focusName(); }} /></>}
             {view === "equipamento" && <EquipmentManager equip={panel.equip ?? {}} rows={computed} isQGE={panel.panelKind === "QGE"} panelIb={totals.ib} iccKA={panelIccKA(panel)} onChange={equip => updatePanel({ equip })} />}
             {view === "diferenciais" && <RCDManager rcds={panel.rcds ?? []} rows={computed} onChange={rcds => updatePanel({ rcds })} />}
             {view === "frontal" && <DinFrontView rows={computed} mainPoles={panel.phase === "Tri" ? 4 : 2} />}
@@ -664,27 +656,27 @@ const totals = useMemo(() => {
           </section>
         )}
         {view === "circuitos" && (
-        <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <table className="w-full table-fixed text-xs">
+        <section className="min-h-0 min-w-0 flex-1 overflow-auto">
+          <table className={`circuit-table w-full text-xs ${showDetails ? "all-columns" : "essential-columns"}`}>
             <thead className="sticky top-0 z-10 bg-[color:var(--surface-2)] text-foreground">
               <tr>
                 <th className="w-7 border-b border-border px-2 py-2">
                   <input type="checkbox" checked={computed.length > 0 && selIds.size === computed.length}
                     onChange={e => setSelIds(e.target.checked ? new Set(computed.map(x => x.c.id)) : new Set())} />
                 </th>
-                {["#","Circuito","Tipo","Fase","P(W)","L(m)","S(VA)","Ib(A)","In(A)","Curva","Secção","Iz(A)","ΔU%","Icc(kA)","PdC(kA)","Mód","Ações"].map(h =>
+                {["#","Circuito","Diferencial","Tipo","Fase","P(W)","L(m)","S(VA)","Ib(A)","In(A)","Curva","Secção","Iz(A)","ΔU%","Icc(kA)","PdC(kA)","Mód","Ações"].map(h =>
                   <th key={h} className="border-b border-border px-2 py-2 text-left font-semibold">{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {computed.length === 0 && (
-                <tr><td colSpan={18} className="p-12 text-center text-muted-foreground">Sem circuitos. Adicione um circuito acima ↑</td></tr>
+                <tr><td colSpan={19} className="p-12 text-center text-muted-foreground">Sem circuitos. Adicione um circuito acima ↑</td></tr>
               )}
               {computed.map(({ c, r }, i) => {
                 const hasErr = r.errors.length > 0;
                 const hasWarn = r.warnings.length > 0;
                 const sel = selectedCircuitId === c.id;
-                const totalDU = ctx!.feederDeltaU + r.deltaU;
+                const totalDU = (ctx?.feederDeltaU ?? 0) + r.deltaU;
 
                 // ΔU terminal: crítico > 4% (vermelho), quase a exceder ≥ 3.2% (laranja)
                 //--minha--const duStatus: Status = classify(totalDU, 3.2, 4.0);
@@ -745,7 +737,8 @@ const totals = useMemo(() => {
                     </td>
                     <td className="px-2 py-1.5">{i + 1}</td>
                     <td className="px-2 py-1.5 font-medium"><InlineCell value={c.name} onSave={v => v.trim() && patchCircuit(c.id, { name: v.trim() })} /></td>
-                    <td className="px-2 py-1.5">{labelType(c.type)}</td>
+                    <td className="px-2 py-1.5"><CircuitProtection circuit={c} rcds={panel.rcds ?? []} rows={computed} onChange={rcds => updatePanel({ rcds })} /></td>
+                     <td className="px-2 py-1.5">{labelType(c.type)}</td>
                     <td className="px-2 py-1.5">{c.phase}{c.phaseAssign ? `/${c.phaseAssign}` : ""}</td>
                     <td className="px-2 py-1.5"><InlineCell numeric value={c.power.toFixed(0)} onSave={v => num(v) > 0 && patchCircuit(c.id, { power: num(v) })} /></td>
                     <td className="px-2 py-1.5"><InlineCell numeric value={c.length} onSave={v => num(v) > 0 && patchCircuit(c.id, { length: num(v) })} /></td>
@@ -773,16 +766,13 @@ const totals = useMemo(() => {
                     <td className="px-2 py-1.5 font-semibold" title="Poder de corte mínimo do disjuntor (Icu/Icn) para o Icc presumido neste ponto">{r.icuKA}</td>
                     <td className="px-2 py-1.5">{r.modules}</td>
                     <td className="px-2 py-1.5">
-                      <div className="flex items-center gap-1">
-                        <button onClick={e => { e.stopPropagation(); setDraft(d => ({ ...d, id: undefined, name: "", power: "", length: "" })); setSelectedCircuitId(null); setInsertIndex(i); focusName(); }}
-                          title="Inserir novo circuito ACIMA desta linha"
-                          className={`rounded border px-2 hover:bg-[color:var(--brand-green)]/10 ${insertIndex === i ? "border-[color:var(--brand-green)] text-[color:var(--brand-green)]" : "border-border text-muted-foreground"}`}>↑+</button>
-                        <button onClick={e => { e.stopPropagation(); setDraft(d => ({ ...d, id: undefined, name: "", power: "", length: "" })); setSelectedCircuitId(null); setInsertIndex(i + 1); focusName(); }}
-                          title="Inserir novo circuito ABAIXO desta linha"
-                          className={`rounded border px-2 hover:bg-[color:var(--brand-green)]/10 ${insertIndex === i + 1 ? "border-[color:var(--brand-green)] text-[color:var(--brand-green)]" : "border-border text-muted-foreground"}`}>↓+</button>
-                        <button onClick={e => { e.stopPropagation(); deleteCircuit(c.id); }}
-                          className="rounded border border-destructive/40 px-2 text-destructive hover:bg-destructive/10">×</button>
-                      </div>
+                      <ActionMenu label={`Ações de ${c.name}`} iconOnly actions={[
+                        { label: "Editar circuito", run: () => editCircuit(c) },
+                        { label: "Diagnóstico", run: () => { setSelectedCircuitId(c.id); setShowInspector(true); } },
+                        { label: "Inserir acima", run: () => { setDraft(emptyDraft()); setSelectedCircuitId(null); setInsertIndex(i); setShowCircuitForm(true); focusName(); } },
+                        { label: "Inserir abaixo", run: () => { setDraft(emptyDraft()); setSelectedCircuitId(null); setInsertIndex(i + 1); setShowCircuitForm(true); focusName(); } },
+                        { label: "Eliminar circuito", run: () => deleteCircuit(c.id), danger: true },
+                      ]} />
                     </td>
                   </tr>
 
@@ -795,9 +785,9 @@ const totals = useMemo(() => {
         )}
 
         {/* Painel de diagnóstico */}
-        {selected && view === "circuitos" && (
+        {selected && showInspector && view === "circuitos" && (
           <aside className="w-full shrink-0 border-l border-border bg-card p-4 text-sm lg:w-80 lg:overflow-y-auto">
-            <div className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">Diagnóstico Assistido</div>
+            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">Diagnóstico<Button variant="ghost" size="icon" title="Fechar diagnóstico" aria-label="Fechar diagnóstico" onClick={() => setShowInspector(false)}><X /></Button></div>
             <h3 className="mb-3 text-base font-bold text-[color:var(--brand-green)]">{selected.c.name}</h3>
             <KV k="S" v={`${selected.r.s.toFixed(0)} VA`} />
             <KV k="Ib" v={`${selected.r.ib.toFixed(2)} A`} />
@@ -806,7 +796,7 @@ const totals = useMemo(() => {
             {selected.r.parallel > 1 && <KV k="Condutores/fase" v={String(selected.r.parallel)} />}
             <KV k="Iz" v={`${selected.r.iz} A`} />
            
-            <KV k={`ΔU total (Máx. ${selected.c.type === "Iluminacao" ? "3%" : "5%"})`} v={`${(ctx!.feederDeltaU + selected.r.deltaU).toFixed(2)} %`} />
+            <KV k={`ΔU total (Máx. ${selected.c.type === "Iluminacao" ? "3%" : "5%"})`} v={`${((ctx?.feederDeltaU ?? 0) + selected.r.deltaU).toFixed(2)} %`} />
 
             <KV k="Icc terminal" v={`${selected.r.iccTerm.toFixed(2)} kA`} />
             <KV k="Poder de corte (Icu)" v={`≥ ${selected.r.icuKA} kA`} />
@@ -825,17 +815,14 @@ const totals = useMemo(() => {
                 <div className="rounded border border-[color:var(--brand-green)]/40 bg-[color:var(--brand-green)]/10 p-2 text-[color:var(--brand-green)]">✓ Circuito conforme RTIEBT.</div>
               )}
             </div>
-            <label className="mt-3 flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={selected.c.rcd30 !== false} onChange={e => patchCircuit(selected.c.id, { rcd30: e.target.checked })} />
-              Protegido por diferencial ≤ 30 mA
-            </label>
+            <div className="mt-3"><div className="mb-2 text-xs text-muted-foreground">Diferencial</div><CircuitProtection circuit={selected.c} rcds={panel.rcds ?? []} rows={computed} onChange={rcds => updatePanel({ rcds })} /></div>
             {ctx && <CircuitInspector row={selected} ctx={ctx} />}
           </aside>
         )}
       </main>
 
       {/* ===== RODAPÉ FIXO: APARELHAGEM + RESUMO ===== */}
-      <footer className="sticky bottom-0 z-30 border-t border-border bg-[color:var(--surface-1)]/95 px-4 py-3 backdrop-blur">
+      <footer className="workspace-footer shrink-0 border-t border-border bg-background px-4 py-2">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <Stat label="P total" value={`${totals.p.toFixed(0)} W`} />
           <Stat label="Ib total" value={`${(() => {
@@ -870,13 +857,14 @@ const totals = useMemo(() => {
       </footer>
 
       {showConduit && <ConduitCalculator onClose={() => setShowConduit(false)} />}
+      </div>
     </div>
   );
 }
 
 function Field({ label, children, w }: { label: string; children: React.ReactNode; w?: string }) {
   return (
-    <div style={{ width: w, minWidth: w }}>
+    <div className="min-w-0">
       <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       {children}
     </div>
