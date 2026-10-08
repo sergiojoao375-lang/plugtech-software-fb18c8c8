@@ -115,6 +115,7 @@
 .technical-view { padding: 20px 24px; }
 .technical-view:not(:has(.single-line-workspace)) { padding: 12px; }
 .single-line-workspace { flex: 1; min-height: 0; overflow: auto; background: var(--background); border: 1px solid var(--border); border-radius: 6px; }
+.single-line-workspace.diagram-expanded { position: fixed; inset: 12px; z-index: 50; border-radius: 6px; }
 .single-line-canvas { min-width: min-content; padding: 24px; }
 .single-line-canvas > svg { margin-left: auto; margin-right: auto; display: block; }
 .single-line-canvas details > svg { margin-top: 16px; }

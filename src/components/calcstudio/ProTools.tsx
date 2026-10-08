@@ -11,7 +11,7 @@ import type { PanelEquip } from "@/lib/calc/equipment";
 import { generatorIcc } from "@/lib/calc/equipment";
 import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND } from "./ElectricalSymbol";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 
 type Row = { c: Circuit; r: CalcResult };
 const inputCls = "w-full rounded border border-border bg-[color:var(--surface-2)] px-1 py-0.5 text-xs";
@@ -178,6 +178,7 @@ export function CapacitorBank({ pW, cosNow }: { pW: number; cosNow: number }) {
 const PH: Record<string, string> = { L1: "var(--phase-l1)", L2: "var(--phase-l2)", L3: "var(--phase-l3)" };
 export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {} }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; tags?: Map<string, string[]> }) {
   const [zoom, setZoom] = useState(1.25);
+  const [expanded, setExpanded] = useState(false);
   const idx = new Map(rows0.map((x, i) => [x.c.id, i]));
   const groups: Array<{ d?: RCD; rows: Row[] }> = rcds.map(d => ({ d, rows: rows0.filter(x => d.circuitIds.includes(x.c.id)) })).filter(g => g.rows.length);
   const loose = rows0.filter(x => !rcds.some(d => d.circuitIds.includes(x.c.id)));
@@ -191,12 +192,13 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
   const H = loadY + 195;
   let pos = 0;
   return (
-    <div className="single-line-workspace">
+    <div className={`single-line-workspace ${expanded ? "diagram-expanded" : ""}`}>
       <div className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-background px-4 py-2">
         <Button variant="ghost" size="icon" aria-label="Reduzir unifilar" title="Reduzir" disabled={zoom <= 0.5} onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}><Minus /></Button>
         <span className="w-12 text-center font-mono text-xs" aria-live="polite">{Math.round(zoom * 100)}%</span>
         <Button variant="ghost" size="icon" aria-label="Ampliar unifilar" title="Ampliar" disabled={zoom >= 2.5} onClick={() => setZoom(z => Math.min(2.5, z + 0.25))}><Plus /></Button>
         <Button variant="ghost" size="icon" aria-label="Repor ampliação" title="Repor ampliação" onClick={() => setZoom(1.25)}><RotateCcw /></Button>
+        <Button variant="ghost" size="icon" className="ml-auto" aria-label={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} title={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 /> : <Maximize2 />}</Button>
       </div>
       <div className="single-line-canvas">
       {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
