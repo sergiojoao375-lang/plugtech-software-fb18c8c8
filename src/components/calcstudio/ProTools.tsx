@@ -199,7 +199,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
         <Button variant="ghost" size="icon" aria-label="Repor ampliação" title="Repor ampliação" onClick={() => setZoom(1.25)}><RotateCcw /></Button>
       </div>
       <div className="single-line-canvas">
-      <PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} />
+      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
       <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="bg-background text-foreground">
         <text x={16} y={24} className="fill-foreground" fontSize={14} fontWeight={700}>{panelName} — Esquema unifilar</text>
         <path d={`M40 34V43 M40 87V${busY}`} stroke="currentColor" fill="none" strokeWidth={2} />
