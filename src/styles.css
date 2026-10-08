@@ -115,8 +115,11 @@
 .technical-view { padding: 20px 24px; }
 .technical-view:not(:has(.single-line-workspace)) { padding: 12px; }
 .single-line-workspace { flex: 1; min-height: 0; overflow: auto; background: var(--background); border: 1px solid var(--border); border-radius: 6px; }
+.single-line-workspace.diagram-expanded { position: fixed; inset: 12px; z-index: 50; border-radius: 6px; }
 .single-line-canvas { min-width: min-content; padding: 24px; }
 .single-line-canvas > svg { margin-left: auto; margin-right: auto; display: block; }
+.single-line-canvas details > svg { margin-top: 16px; }
+.diagram-circuit-list > div:nth-child(2) { max-height: 170px; }
 .diagram-circuit-list { flex-shrink: 0; margin-top: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .diagram-circuit-list th { font-family: var(--font-mono); }
 .circuit-table { border-collapse: collapse; background: var(--background); }
@@ -136,12 +139,12 @@
   .circuit-form-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 600px) {
-  .workspace-sidebar { width: 56px; }
+  .calc-workspace > .workspace-sidebar { width: 56px; min-width: 56px; max-width: 56px; }
   .workspace-sidebar .workspace-brand { padding: 12px; height: 64px; }
   .workspace-sidebar .workspace-brand > div, .workspace-sidebar .workspace-nav span { display: none; }
   .workspace-sidebar nav { padding-left: 6px; padding-right: 6px; }
   .workspace-sidebar .workspace-nav { justify-content: center; padding: 0; }
-  .workspace-sidebar.is-collapsed { width: 180px; }
+  .calc-workspace > .workspace-sidebar.is-collapsed { width: 180px; min-width: 180px; max-width: 180px; }
   .workspace-sidebar.is-collapsed .workspace-brand > div, .workspace-sidebar.is-collapsed .workspace-nav span { display: block; }
   .workspace-sidebar.is-collapsed .workspace-nav { justify-content: flex-start; padding: 10px; }
   .workspace-toolbar { gap: 4px; padding: 8px; grid-template-columns: minmax(0,1fr) auto; }
@@ -149,6 +152,8 @@
   .workspace-toolbar > div:last-child { gap: 4px; }
   .workspace-toolbar > div:last-child > button { padding: 6px; }
   .workspace-view-heading { padding: 12px; }
+  .workspace-view-heading > div:first-child { overflow: hidden; }
+  .workspace-view-heading > div:first-child > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .workspace-view-heading h2 { font-size: 13px; }
   .workspace-view-heading > div:last-child button { padding: 6px; }
   .workspace-footer > div:first-child > div { min-width: 85px; }
@@ -156,6 +161,9 @@
   .workspace-footer > div:last-child { gap: 6px; }
   .circuit-form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+.workspace-nav:not(.is-active):hover { color: var(--foreground); background: var(--surface-1); }
+.equipment-section input, .equipment-section select { max-width: 100%; }
+.equipment-manager button { white-space: normal; height: auto; min-height: 32px; }
 @media (prefers-reduced-motion: reduce) { .workspace-sidebar { transition: none; } }
 
 @utility glow-green {

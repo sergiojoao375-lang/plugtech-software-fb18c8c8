@@ -10,6 +10,8 @@ import type { RCD } from "@/lib/calc/rcd";
 import type { PanelEquip } from "@/lib/calc/equipment";
 import { generatorIcc } from "@/lib/calc/equipment";
 import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND } from "./ElectricalSymbol";
+import { Button } from "@/components/ui/button";
+import { Minus, Plus, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 
 type Row = { c: Circuit; r: CalcResult };
 const inputCls = "w-full rounded border border-border bg-[color:var(--surface-2)] px-1 py-0.5 text-xs";
@@ -175,6 +177,8 @@ export function CapacitorBank({ pW, cosNow }: { pW: number; cosNow: number }) {
 /* ---------------- Esquema unifilar ---------------- */
 const PH: Record<string, string> = { L1: "var(--phase-l1)", L2: "var(--phase-l2)", L3: "var(--phase-l3)" };
 export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {} }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; tags?: Map<string, string[]> }) {
+  const [zoom, setZoom] = useState(1.25);
+  const [expanded, setExpanded] = useState(false);
   const idx = new Map(rows0.map((x, i) => [x.c.id, i]));
   const groups: Array<{ d?: RCD; rows: Row[] }> = rcds.map(d => ({ d, rows: rows0.filter(x => d.circuitIds.includes(x.c.id)) })).filter(g => g.rows.length);
   const loose = rows0.filter(x => !rcds.some(d => d.circuitIds.includes(x.c.id)));
@@ -188,9 +192,17 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
   const H = loadY + 195;
   let pos = 0;
   return (
-    <div className="overflow-auto p-4">
-      <PanelHead equip={equip} mainLabel={mainLabel} />
-      <svg width={W} height={H} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="border border-border bg-card text-foreground">
+    <div className={`single-line-workspace ${expanded ? "diagram-expanded" : ""}`}>
+      <div className="sticky top-0 left-0 z-10 flex items-center gap-2 border-b border-border bg-background px-4 py-2">
+        <Button variant="ghost" size="icon" aria-label="Reduzir unifilar" title="Reduzir" disabled={zoom <= 0.5} onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}><Minus /></Button>
+        <span className="w-12 text-center font-mono text-xs" aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <Button variant="ghost" size="icon" aria-label="Ampliar unifilar" title="Ampliar" disabled={zoom >= 2.5} onClick={() => setZoom(z => Math.min(2.5, z + 0.25))}><Plus /></Button>
+        <Button variant="ghost" size="icon" aria-label="Repor ampliação" title="Repor ampliação" onClick={() => setZoom(1.25)}><RotateCcw /></Button>
+        <Button variant="ghost" size="icon" className="ml-auto" aria-label={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} title={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 /> : <Maximize2 />}</Button>
+      </div>
+      <div className="single-line-canvas">
+      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
+      <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="bg-background text-foreground">
         <text x={16} y={24} className="fill-foreground" fontSize={14} fontWeight={700}>{panelName} — Esquema unifilar</text>
         <path d={`M40 34V43 M40 87V${busY}`} stroke="currentColor" fill="none" strokeWidth={2} />
         <ElectricalSymbol kind={mainLabel.startsWith("Interruptor") ? "switch" : "breaker"} x={40} y={65} />
@@ -246,22 +258,23 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
         })}
       </svg>
       <div className="mt-2 flex gap-4 text-xs text-muted-foreground"><span>L1 castanho</span><span>L2 vermelho</span><span>L3 cinzento</span><span>Trifásico verde</span></div>
-      <div className="mt-5 border-t border-border pt-4">
-        <h3 className="mb-3 text-xs font-bold">SIMBOLOGIA</h3>
+      <details className="mt-5 border-t border-border pt-4">
+        <summary className="mb-3 cursor-pointer text-xs font-bold">Simbologia</summary>
         <div className="grid min-w-[600px] grid-cols-3 gap-x-6 gap-y-2">
           {SYMBOL_LEGEND.map(([kind, label]) => <div key={kind} className="flex items-center gap-2 text-xs text-muted-foreground"><svg width={48} height={52} className="shrink-0 text-foreground" aria-hidden="true"><ElectricalSymbol kind={kind} x={24} y={26} /></svg><span>{label}</span></div>)}
         </div>
+      </details>
       </div>
     </div>
   );
 }
 
 /* ---------------- Fontes, inversor, MX, DST, UPS, barramentos ---------------- */
-function PanelHead({ equip: e, mainLabel }: { equip: PanelEquip; mainLabel: string }) {
+function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainLabel: string; zoom?: number }) {
   if (!(e.ats || e.ups || e.spd || e.mxFitted || e.buses?.length)) return null;
   const buses = e.buses ?? [];
   const W = Math.max(800, 420 + buses.length * 180);
-  return <svg width={W} height={430} role="img" aria-label="Alimentação e equipamento do quadro" className="mb-3 border border-border bg-card text-foreground">
+  return <svg width={W * zoom} height={430 * zoom} viewBox={`0 0 ${W} 430`} role="img" aria-label="Alimentação e equipamento do quadro" className="mb-3 bg-background text-foreground">
     <text x={16} y={24} fontSize={12} fontWeight={700} className="fill-foreground">Alimentação e equipamento do quadro</text>
     <path d="M90 50V92" stroke="currentColor" strokeWidth={2} /><text x={105} y={65} fontSize={11} className="fill-foreground">REDE</text>
     {e.ats ? <>
