@@ -15,8 +15,62 @@ export const MX_TRIGGERS: Record<MxTrigger, string> = {
   HVAC: "Climatização e bombas (AVAC) de grande porte",
 };
 
-export interface ATS { mode: "Manual" | "Auto"; genKVA: number; phases?: 1 | 3; }
+/** genKVA = potência de CADA grupo. genCount 2: "Paralelo" soma potências; "Redundante" (1+1) mantém a de um grupo. */
+export interface ATS { mode: "Manual" | "Auto"; genKVA: number; phases?: 1 | 3; genCount?: 1 | 2; genMode?: "Paralelo" | "Redundante"; }
 export interface UPS { kVA: number; autonomyMin: number; bypass: boolean; phases?: 1 | 3; pf?: number; }
+/** Transformador MT/BT. Icc calculado automaticamente quando ativo; manual para PT existente. */
+export interface Transformer { active: boolean; kVA: number; ucc: number; manual?: boolean; manualKA?: number; }
+
+export type MeterKind = "TI" | "TT" | "Amperimetro" | "Voltimetro" | "Analisador" | "Contador" | "Modbus" | "KNX" | "FonteKNX";
+export interface MeterDevice { id: string; kind: MeterKind; label: string; qty: number; }
+export const METER_INFO: Record<MeterKind, { name: string; prefix: string; din: number; perPhase?: boolean }> = {
+  TI: { name: "Transformador de intensidade (TI)", prefix: "TI", din: 0, perPhase: true },
+  TT: { name: "Transformador de tensão (TT)", prefix: "TT", din: 2 },
+  Amperimetro: { name: "Amperímetro", prefix: "PA", din: 2 },
+  Voltimetro: { name: "Voltímetro + comutador", prefix: "PV", din: 2 },
+  Analisador: { name: "Analisador de redes / multímetro", prefix: "PN", din: 4 },
+  Contador: { name: "Contador de energia (kWh)", prefix: "PE", din: 4 },
+  Modbus: { name: "Gateway Modbus RS485 / TCP", prefix: "MB", din: 2 },
+  KNX: { name: "Actuador KNX", prefix: "KX", din: 4 },
+  FonteKNX: { name: "Fonte de alimentação KNX 640 mA", prefix: "GK", din: 4 },
+};
+export const TI_PRIMARIES = [50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1250, 1500, 2000, 2500, 3000, 4000];
+/** Relação do TI: primário normalizado ≥ 1,25·Ib (secundário 5 A). */
+export function tiRatio(ib: number) { const p = TI_PRIMARIES.find(v => v >= ib * 1.25) ?? TI_PRIMARIES[TI_PRIMARIES.length - 1]; return { primary: p, label: `${p}/5 A` }; }
+export function newMeter(kind: MeterKind, list: MeterDevice[], tri: boolean): MeterDevice {
+  const i = METER_INFO[kind];
+  const n = list.filter(m => m.kind === kind).length + 1;
+  return { id: crypto.randomUUID(), kind, label: `${i.prefix}${n}`, qty: i.perPhase ? (tri ? 3 : 1) : 1 };
+}
+
+export const TRAFO_KVA = [100, 160, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500];
+export const defaultUcc = (kVA: number) => (kVA <= 630 ? 4 : 6);
+/** Icc trifásico aos bornes BT: Icc = Sn / (√3 · U · ucc). Devolve kA. */
+export function transformerIccKA(kVA: number, ucc: number, u = 400) {
+  const inA = (kVA * 1000) / (Math.sqrt(3) * u);
+  return Math.round((inA * 100 / Math.max(0.5, ucc)) / 100) / 10;
+}
+/** Icc de origem imposto pelo transformador (null se inactivo). */
+export function transformerOriginKA(t?: Transformer | null): number | null {
+  if (!t?.active) return null;
+  return t.manual ? (t.manualKA ?? 0) : transformerIccKA(t.kVA, t.ucc);
+}
+
+/** Grupo(s) gerador(es): potência disponível, corrente e Icc. */
+export function genSet(a: ATS) {
+  const n = a.genCount ?? 1;
+  const ph = a.phases ?? 3;
+  const kVA = n === 2 && (a.genMode ?? "Paralelo") === "Paralelo" ? a.genKVA * 2 : a.genKVA;
+  const unit = generatorIcc(a.genKVA, ph);
+  const running = n === 2 && (a.genMode ?? "Paralelo") === "Paralelo" ? 2 : 1;
+  return { kVA, In: sourceIn(kVA, ph), icc: unit.icc * running, count: n };
+}
+export const ATS_RATINGS = [40, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200];
+/** Calibre automático do inversor Rede/Gerador: ≥ 1,25·Ib do quadro e ≥ In do grupo. */
+export function atsRating(panelIb: number, a: ATS) {
+  const need = Math.max(panelIb * 1.25, genSet(a).In);
+  return ATS_RATINGS.find(r => r >= need) ?? ATS_RATINGS[ATS_RATINGS.length - 1];
+}
 
 export type BusKind = "Normal" | "Socorro" | "UPS" | "Pente";
 export interface Bus { id: string; name: string; kind: BusKind; circuitIds: string[]; }
@@ -52,6 +106,8 @@ export interface PanelEquip {
   ups?: UPS | null;
   buses?: Bus[];
   controls?: ControlModule[];
+  transformer?: Transformer | null;
+  meters?: MeterDevice[];
 }
 
 export function newControl(kind: ControlKind, existing: ControlModule[]): ControlModule {
@@ -163,14 +219,17 @@ export function checkEquipment(rows: Row[], e: PanelEquip, isQGE: boolean, panel
   const busOf = (id: string) => buses.find(b => b.circuitIds.includes(id));
   if (e.ats) {
     const ph = e.ats.phases ?? 3;
-    const g = generatorIcc(e.ats.genKVA, ph);
+    const g = genSet(e.ats);
+    const gName = g.count === 2 ? `2 grupos ${e.ats.genKVA} kVA (${e.ats.genMode ?? "Paralelo"}) = ${g.kVA} kVA` : `Gerador ${e.ats.genKVA} kVA`;
     const em = buses.filter(b => b.kind === "Socorro" || b.kind === "UPS");
     const fed = em.length ? rows.filter(x => em.some(b => b.circuitIds.includes(x.c.id))) : rows;
-    const load = em.length ? sourceLoadA(fed, ph) : (ph === 3 ? Math.max(worstPhaseIb(rows), panelIb > 0 ? 0 : 0) : sourceLoadA(rows, ph));
+    const load = sourceLoadA(fed, ph);
     const pct = g.In > 0 ? (load / g.In) * 100 : 999;
-    if (pct > 100) out.push({ level: "critical", msg: `Gerador ${e.ats.genKVA} kVA (In ${g.In.toFixed(0)} A/fase) insuficiente: fase mais carregada ${load.toFixed(0)} A (${pct.toFixed(0)} %)` });
-    else if (pct > 80) out.push({ level: "warn", msg: `Gerador a ${pct.toFixed(0)} % da potência (${load.toFixed(0)} / ${g.In.toFixed(0)} A) — recomendado ≤ 80 % para arranques e reserva` });
-    else out.push({ level: "info", msg: `Gerador ${e.ats.genKVA} kVA: In ${g.In.toFixed(0)} A/fase, carga ${load.toFixed(0)} A (${pct.toFixed(0)} %), Icc ≈ ${g.icc.toFixed(0)} A` });
+    if (pct > 100) out.push({ level: "critical", msg: `${gName} (In ${g.In.toFixed(0)} A/fase) insuficiente: fase mais carregada ${load.toFixed(0)} A (${pct.toFixed(0)} %)` });
+    else if (pct > 80) out.push({ level: "warn", msg: `${gName} a ${pct.toFixed(0)} % da potência (${load.toFixed(0)} / ${g.In.toFixed(0)} A) — recomendado ≤ 80 % para arranques e reserva` });
+    else out.push({ level: "info", msg: `${gName}: In ${g.In.toFixed(0)} A/fase, carga ${load.toFixed(0)} A (${pct.toFixed(0)} %), Icc ≈ ${g.icc.toFixed(0)} A` });
+    out.push({ level: "info", msg: `Inversor Rede/Gerador dimensionado automaticamente: ${atsRating(panelIb, e.ats)} A ${ph === 3 ? "4P" : "2P"}` });
+    if (g.count === 2) out.push({ level: "info", msg: (e.ats.genMode ?? "Paralelo") === "Paralelo" ? "Grupos em paralelo: prever quadro de sincronismo e partilha de carga" : "Grupos em redundância 1+1: comutação automática entre grupos" });
     const motor = fed.filter(x => x.c.type === "AC" || x.c.type === "UAC").reduce((m, x) => Math.max(m, x.r.ib), 0);
     if (motor > 0 && motor * 6 > g.icc) out.push({ level: "warn", msg: `Maior motor (${motor.toFixed(0)} A, arranque ≈ ${(motor * 6).toFixed(0)} A) excede a capacidade do gerador — usar arrancador suave/VSD ou gerador maior` });
     for (const { c, r } of fed) {
@@ -213,6 +272,19 @@ export function checkEquipment(rows: Row[], e: PanelEquip, isQGE: boolean, panel
     }
     if ((m.kind === "VSD") && rows.some(x => m.circuitIds.includes(x.c.id) && x.c.phase !== "Tri")) out.push({ level: "info", msg: `${m.label}: VSD num circuito monofásico — confirmar modelo 230 V` });
   }
+  if (e.transformer?.active) {
+    const t = e.transformer;
+    const auto = transformerIccKA(t.kVA, t.ucc);
+    out.push({ level: "info", msg: t.manual ? `Transformador existente: Icc manual ${t.manualKA ?? 0} kA (calculado seria ${auto} kA)` : `Transformador ${t.kVA} kVA · ucc ${t.ucc} % ⇒ Icc ${auto} kA aos bornes BT` });
+  }
+  const meters = e.meters ?? [];
+  const has = (k: MeterKind) => meters.some(m => m.kind === k);
+  const tiQty = meters.filter(m => m.kind === "TI").reduce((s, m) => s + m.qty, 0);
+  if ((has("Amperimetro") || has("Analisador")) && panelIb > 63 && !tiQty) out.push({ level: "warn", msg: `Medição indireta necessária (Ib ${panelIb.toFixed(0)} A > 63 A): adicionar TI ${tiRatio(panelIb).label}` });
+  if (tiQty) out.push({ level: "info", msg: `TI recomendado: ${tiRatio(panelIb).label} classe 0,5 (medida) — ${tiQty} un.` });
+  if (has("Analisador") && tiQty > 0 && tiQty < 3 && (e.ats?.phases ?? 3) === 3) out.push({ level: "warn", msg: "Analisador de redes trifásico requer 3 TI (um por fase)" });
+  if (has("KNX") && !has("FonteKNX")) out.push({ level: "critical", msg: "Actuadores KNX sem fonte de alimentação KNX (bus 30 V)" });
+  if (has("Analisador") && !has("Modbus")) out.push({ level: "info", msg: "Analisador sem gateway Modbus — leitura apenas local" });
   return out;
 }
 
@@ -225,5 +297,37 @@ export function circuitTags(e: PanelEquip): Map<string, string[]> {
 }
 
 export function dinModules(e: PanelEquip): number {
-  return (e.spd ? e.spd.poles : 0) + (e.mxFitted ? 1 : 0) + (e.controls ?? []).reduce((s, c) => s + CONTROL_INFO[c.kind].din, 0);
+  return (e.spd ? e.spd.poles : 0) + (e.mxFitted ? 1 : 0) + (e.controls ?? []).reduce((s, c) => s + CONTROL_INFO[c.kind].din, 0)
+    + (e.meters ?? []).reduce((s, m) => s + METER_INFO[m.kind].din * (METER_INFO[m.kind].perPhase ? 0 : m.qty), 0)
+    + (e.ats && atsModular(e.ats) ? 6 : 0) + (e.ups?.bypass ? 3 : 0);
+}
+const atsModular = (a: ATS) => genSet(a).In <= 63;
+
+export type DinKind = "main" | "breaker" | "rcd" | "spd" | "coil" | "ats" | "bypass" | "control" | "meter" | "screen" | "comm";
+export interface DinItem { label: string; mods: number; kind: DinKind; poles: number; detail: string; }
+/** Toda a aparelhagem modular do quadro na ordem de montagem (para Frontal DIN, caixa e relatório). */
+export function dinLayout(rows: Row[], e: PanelEquip, rcds: Array<{ label: string; inA: number; iAnmA: number; poles: 2 | 4; kind: string; circuitIds: string[] }>, mainPoles: number, mainRating: number): DinItem[] {
+  const out: DinItem[] = [];
+  out.push({ label: "QG", mods: mainRating > 125 ? 0 : mainPoles, kind: "main", poles: mainPoles, detail: `Corte geral ${mainRating} A${mainRating > 125 ? " (montagem em placa)" : ""}` });
+  if (e.mxFitted) out.push({ label: "MX", mods: 1, kind: "coil", poles: 1, detail: "Bobina de emissão MX" });
+  if (e.spd) out.push({ label: "DST", mods: e.spd.poles, kind: "spd", poles: e.spd.poles, detail: `DST ${e.spd.type} ${e.spd.iKA} kA` });
+  if (e.ats) out.push({ label: "ATS", mods: atsModular(e.ats) ? 6 : 0, kind: "ats", poles: 4, detail: `Inversor ${atsRating(0, e.ats)} A${atsModular(e.ats) ? "" : " (montagem em placa)"}` });
+  if (e.ups?.bypass) out.push({ label: "BP", mods: 3, kind: "bypass", poles: 3, detail: "Comutador bypass UPS" });
+  for (const m of e.meters ?? []) { const i = METER_INFO[m.kind]; if (!i.perPhase) for (let k = 0; k < m.qty; k++) out.push({ label: m.qty > 1 ? `${m.label}.${k + 1}` : m.label, mods: i.din, kind: m.kind === "Modbus" || m.kind === "KNX" || m.kind === "FonteKNX" ? "comm" : "screen", poles: 1, detail: i.name }); }
+  for (const c of e.controls ?? []) out.push({ label: c.label, mods: CONTROL_INFO[c.kind].din, kind: "control", poles: 1, detail: CONTROL_INFO[c.kind].name });
+  const placed = new Set<string>();
+  rows.forEach(({ c, r }, i) => {
+    const d = rcds.find(x => x.circuitIds.includes(c.id));
+    if (d && !placed.has(d.label)) { placed.add(d.label); out.push({ label: d.label, mods: d.poles, kind: "rcd", poles: d.poles, detail: `Diferencial ${d.inA} A ${d.iAnmA} mA tipo ${d.kind}` }); }
+    out.push({ label: `C${i + 1}`, mods: r.modules, kind: "breaker", poles: r.modules, detail: `${c.name} — ${r.in} A ${r.curve}` });
+  });
+  return out.filter(x => x.mods > 0);
+}
+export const BOX_SIZES = [12, 24, 36, 48, 72, 96, 120, 144, 168, 192];
+/** Caixa normalizada: módulos ocupados + 30 % de reserva, filas de 12/18/24. */
+export function enclosureFor(used: number) {
+  const need = Math.ceil(used * 1.3);
+  const perRow = need <= 36 ? 12 : need <= 72 ? 18 : 24;
+  const rowsN = Math.max(1, Math.ceil(need / perRow));
+  return { used, need, perRow, rows: rowsN, total: perRow * rowsN, label: `${rowsN} × ${perRow} módulos (${perRow * rowsN} mód.)` };
 }

@@ -107,7 +107,7 @@
 .workspace-sidebar.is-collapsed .workspace-nav { justify-content: center; padding: 0; }
 .workspace-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 12px 20px; }
 .workspace-settings { max-height: 35dvh; overflow: auto; }
-.workspace-settings > div > div { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.workspace-settings > div > div { border-radius: 10px; }
 .workspace-circuit-form { max-height: 42dvh; overflow: auto; }
 .circuit-form-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; align-items: end; }
 .workspace-view-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--border); }
@@ -127,9 +127,17 @@
 .circuit-table td:nth-child(3) { min-width: 190px; }
 .circuit-table td:nth-child(3) > span { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .essential-columns :is(th,td):nth-child(5), .essential-columns :is(th,td):nth-child(8), .essential-columns :is(th,td):nth-child(9), .essential-columns :is(th,td):nth-child(12), .essential-columns :is(th,td):nth-child(14), .essential-columns :is(th,td):nth-child(16), .essential-columns :is(th,td):nth-child(17), .essential-columns :is(th,td):nth-child(18) { display: none; }
-.workspace-footer > div:first-child { display: flex; flex-wrap: wrap; gap: 16px; }
-.workspace-footer > div:first-child > div { flex: 1; min-width: 110px; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.workspace-footer > div:first-child > div > div:last-child { font-size: 13px; font-family: var(--font-mono); }
+.workspace-footer > div:first-child { display: flex; flex-wrap: wrap; gap: 10px; }
+.workspace-footer > div:first-child > div { flex: 1; min-width: 110px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 6px 18px -12px color-mix(in oklab, var(--brand-green) 60%, transparent); }
+.workspace-footer > div:first-child > div > div:last-child { font-size: 15px; font-family: var(--font-mono); }
+/* Frontal DIN realista */
+:root {
+  --din-enclosure: #d9dde2; --din-enclosure-edge: #9aa3ad; --din-backplate: #eef0f2;
+  --din-rail: #b8bec6; --din-rail-hole: #8b939d; --din-device: #f7f8f9; --din-device-edge: #b3b9c1;
+  --din-copper: #c98a4b; --din-copper-dark: #94602f; --din-duct: #6f7780; --din-duct-slot: #545b63;
+  --din-l1: #7a4a24; --din-l2: #1d1d1d; --din-l3: #8a8f96; --din-n: #2a6fd6; --din-pe: #3aa64a; --din-pe-stripe: #e7d33a;
+  --din-handle: #2b3138; --din-test: #e0b11c; --din-screen: #9fd8a8; --din-label: #1b2a36;
+}
 .workspace-footer > div:last-child { font-size: 10px; }
 @media (max-width: 900px) {
   .workspace-sidebar { width: 180px; }

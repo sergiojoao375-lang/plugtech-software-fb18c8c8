@@ -18,7 +18,7 @@ const views = [
 ] as const;
 export function WorkspaceSidebar({ view, onView, collapsed, critical, onAbout }: { view: WorkspaceView; onView: (v: WorkspaceView) => void; collapsed: boolean; critical: boolean; onAbout: () => void }) {
   return <aside className={`workspace-sidebar ${collapsed ? "is-collapsed" : ""}`}>
-    <div className="workspace-brand"><Zap className="h-7 w-7 shrink-0 text-primary" /><div className="min-w-0"><h1 className="text-lg font-bold">PLUGTECH</h1><span className="text-xs text-muted-foreground">CalcStudio</span></div></div>
+    <div className="workspace-brand"><img src="logo.png" alt="PLUGTECH" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg bg-surface-1 object-contain" /><div className="min-w-0"><h1 className="text-lg font-bold">PLUGTECH</h1><span className="text-xs text-brand-green">CalcStudio</span></div></div>
     <nav aria-label="Vistas do quadro" className="flex-1 space-y-1 px-3 py-4">
       {views.map(({ id, label, icon: Icon }) => <Button key={id} variant="ghost" onClick={() => onView(id)} title={label} aria-label={label} aria-current={view === id ? "page" : undefined} className={`workspace-nav ${view === id ? "is-active" : ""}`}><Icon /><span className="min-w-0 truncate">{label}</span>{id === "auditoria" && critical && <span className="text-destructive" aria-label="Avisos críticos">●</span>}</Button>)}
     </nav>
