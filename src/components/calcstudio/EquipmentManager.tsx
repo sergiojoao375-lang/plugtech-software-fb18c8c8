@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ActionMenu } from "./WorkspaceControls";
 import type { Circuit, CalcResult } from "@/lib/calc/engine";
 import {
-  CONTROL_INFO, MX_TRIGGERS, checkEquipment, generatorIcc, mxReasons, newControl, recommendSpd, sizeBusbar, busIb, terminals, upsIcc,
-  type Bus, type BusKind, type ControlKind, type ControlModule, type MxTrigger, type PanelEquip, type SpdType,
+  CONTROL_INFO, MX_TRIGGERS, METER_INFO, TRAFO_KVA, atsRating, checkEquipment, defaultUcc, genSet, mxReasons, newControl, newMeter, recommendSpd, sizeBusbar, busIb, terminals, tiRatio, transformerIccKA, transformerOriginKA, upsIcc,
+  type Bus, type BusKind, type ControlKind, type ControlModule, type MeterKind, type MxTrigger, type PanelEquip, type SpdType, type Transformer,
 } from "@/lib/calc/equipment";
+import { ElectricalSymbol, METER_SYMBOL } from "./ElectricalSymbol";
 
 type Row = { c: Circuit; r: CalcResult };
 const sel = "rounded border border-border bg-[color:var(--surface-2)] px-1 py-1 text-xs";
@@ -30,9 +31,11 @@ function CircuitPicker({ rows, ids, onToggle, taken }: { rows: Row[]; ids: strin
   );
 }
 
-export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA }: { equip: PanelEquip; rows: Row[]; onChange: (e: PanelEquip) => void; isQGE: boolean; panelIb: number; iccKA: number }) {
+export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA, tri = true, onOriginKA }: { equip: PanelEquip; rows: Row[]; onChange: (e: PanelEquip) => void; isQGE: boolean; panelIb: number; iccKA: number; tri?: boolean; onOriginKA?: (kA: number) => void }) {
   const e = equip;
   const set = (p: Partial<PanelEquip>) => onChange({ ...e, ...p });
+  const setTrafo = (t: Transformer) => { set({ transformer: t }); const k = transformerOriginKA(t); if (k !== null && onOriginKA) onOriginKA(k); };
+  const meters = e.meters ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const issues = checkEquipment(rows, e, isQGE, panelIb, iccKA);
   const reasons = mxReasons(rows, e);
@@ -64,31 +67,50 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA 
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Transformador */}
+        <div className={card}>
+          <div className={h}>🔌 Transformador MT/BT</div>
+          {!e.transformer ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => setTrafo({ active: true, kVA: 630, ucc: 4 })}>+ Adicionar transformador</Button> : (() => { const t = e.transformer; const auto = transformerIccKA(t.kVA, t.ucc); return (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-1 font-semibold"><input type="checkbox" checked={t.active} onChange={ev => setTrafo({ ...t, active: ev.target.checked })} /> Ativo</label>
+              <select className={sel} value={t.kVA} onChange={ev => { const k = +ev.target.value; setTrafo({ ...t, kVA: k, ucc: defaultUcc(k) }); }}>{TRAFO_KVA.map(k => <option key={k} value={k}>{k} kVA</option>)}</select>
+              ucc <input type="number" step="0.5" className={`${sel} w-14`} value={t.ucc} onChange={ev => setTrafo({ ...t, ucc: +ev.target.value || 4 })} /> %
+              <label className="flex items-center gap-1"><input type="checkbox" checked={!!t.manual} onChange={ev => setTrafo({ ...t, manual: ev.target.checked, manualKA: t.manualKA ?? auto })} /> Icc manual (existente)</label>
+              {t.manual && <><input type="number" step="0.1" className={`${sel} w-16`} value={t.manualKA ?? auto} onChange={ev => setTrafo({ ...t, manualKA: +ev.target.value || 0 })} /> kA</>}
+              <span className="w-full font-mono text-muted-foreground">{t.active ? `Icc origem aplicado: ${transformerOriginKA(t)} kA` : "Inativo — Icc de origem definido nas configurações"} · calculado {auto} kA · In {(t.kVA * 1000 / (Math.sqrt(3) * 400)).toFixed(0)} A</span>
+              <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ transformer: null })}>🗑</Button>
+            </div>); })()}
+        </div>
         {/* Fontes e inversor */}
         <div className={card}>
           <div className={h}>⚡ Fontes e inversor (Rede / Gerador)</div>
-          {!e.ats ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ats: { mode: "Auto", genKVA: 100 } })}>+ Adicionar inversor Rede/Gerador</Button> : (
+          {!e.ats ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ats: { mode: "Auto", genKVA: 100, genCount: 1, phases: tri ? 3 : 1 } })}>+ Adicionar inversor Rede/Gerador</Button> : (() => { const a = e.ats; const g = genSet(a); const pa = (p: Partial<typeof a>) => set({ ats: { ...a, ...p } }); return (
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <select className={sel} value={e.ats.mode} onChange={ev => e.ats && set({ ats: { ...e.ats, mode: ev.target.value as "Manual" | "Auto" } })}>
-                <option value="Auto">Automático (ATS, encravamento elétrico + mecânico)</option><option value="Manual">Manual I-0-II</option>
+              <select className={sel} value={a.mode} onChange={ev => pa({ mode: ev.target.value as "Manual" | "Auto" })}>
+                <option value="Auto">Automático (ATS)</option><option value="Manual">Manual I-0-II</option>
               </select>
-              Gerador <input type="number" className={`${sel} w-20`} value={e.ats.genKVA} onChange={ev => e.ats && set({ ats: { ...e.ats, genKVA: +ev.target.value || 0 } })} /> kVA
-              <span className="font-mono text-muted-foreground">In {generatorIcc(e.ats.genKVA).In.toFixed(0)} A · Icc ≈ {generatorIcc(e.ats.genKVA).icc.toFixed(0)} A</span>
+              <select className={sel} value={a.genCount ?? 1} onChange={ev => pa({ genCount: +ev.target.value as 1 | 2 })}><option value={1}>1 gerador</option><option value={2}>Grupo de 2 geradores</option></select>
+              {(a.genCount ?? 1) === 2 && <select className={sel} value={a.genMode ?? "Paralelo"} onChange={ev => pa({ genMode: ev.target.value as "Paralelo" | "Redundante" })}><option value="Paralelo">Paralelo (soma)</option><option value="Redundante">Redundância 1+1</option></select>}
+              <select className={sel} value={a.phases ?? 3} onChange={ev => pa({ phases: +ev.target.value as 1 | 3 })}><option value={3}>Trifásico</option><option value={1}>Monofásico</option></select>
+              {(a.genCount ?? 1) === 2 ? "Cada" : "Gerador"} <input type="number" className={`${sel} w-20`} value={a.genKVA} onChange={ev => pa({ genKVA: +ev.target.value || 0 })} /> kVA
+              <span className="w-full font-mono text-muted-foreground">Total {g.kVA} kVA · In {g.In.toFixed(0)} A · Icc ≈ {g.icc.toFixed(0)} A · Inversor automático <b className="text-brand-green">{atsRating(panelIb, a)} A {(a.phases ?? 3) === 3 ? "4P" : "2P"}</b></span>
               <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ ats: null })}>🗑</Button>
-            </div>
-          )}
+            </div>); })()}
           <div className={`${h} mt-4`}>🔋 UPS (alimentação ininterrupta)</div>
-          {!e.ups ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ups: { kVA: 10, autonomyMin: 15, bypass: true }, buses: buses.some(b => b.kind === "UPS") ? buses : [...buses, { id: crypto.randomUUID(), name: "Barramento UPS", kind: "UPS", circuitIds: [] }] })}>+ Adicionar UPS</Button> : (
+          {!e.ups ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ups: { kVA: 10, autonomyMin: 15, bypass: true, phases: tri ? 3 : 1, pf: 0.9 }, buses: buses.some(b => b.kind === "UPS") ? buses : [...buses, { id: crypto.randomUUID(), name: "Barramento UPS", kind: "UPS", circuitIds: [] }] })}>+ Adicionar UPS</Button> : (
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select className={sel} value={e.ups.phases ?? 3} onChange={ev => e.ups && set({ ups: { ...e.ups, phases: +ev.target.value as 1 | 3 } })}><option value={3}>Trifásica 400 V</option><option value={1}>Monofásica 230 V</option></select>
               <input type="number" className={`${sel} w-16`} value={e.ups.kVA} onChange={ev => e.ups && set({ ups: { ...e.ups, kVA: +ev.target.value || 0 } })} /> kVA
+              FP <input type="number" step="0.05" className={`${sel} w-14`} value={e.ups.pf ?? 0.9} onChange={ev => e.ups && set({ ups: { ...e.ups, pf: +ev.target.value || 0.9 } })} />
               <input type="number" className={`${sel} w-14`} value={e.ups.autonomyMin} onChange={ev => e.ups && set({ ups: { ...e.ups, autonomyMin: +ev.target.value || 0 } })} /> min
               <label className="flex items-center gap-1"><input type="checkbox" checked={e.ups.bypass} onChange={ev => e.ups && set({ ups: { ...e.ups, bypass: ev.target.checked } })} /> Bypass</label>
-              <span className="font-mono text-muted-foreground">In {upsIcc(e.ups.kVA).In.toFixed(0)} A</span>
+              <span className="font-mono text-muted-foreground">In {upsIcc(e.ups.kVA, e.ups.phases ?? 3).In.toFixed(0)} A{(e.ups.phases ?? 3) === 3 ? "/fase" : ""} · Icc bateria ≈ {upsIcc(e.ups.kVA, e.ups.phases ?? 3).icc.toFixed(0)} A</span>
               <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ ups: null })}>🗑</Button>
               <span className="w-full text-muted-foreground">A jusante da UPS use diferenciais Tipo F ou B e disjuntores curva B.</span>
             </div>
           )}
         </div>
+
 
         {/* DST + MX */}
         <div className={card}>
@@ -169,6 +191,30 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA 
             </div>
           );
         })}
+      </div>
+
+      {/* Medição e comunicação */}
+      <div className={card}>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-bold">📟 Medição e comunicação</span>
+          <span className="text-xs text-muted-foreground">TI sugerido: {tiRatio(panelIb).label} para Ib {panelIb.toFixed(0)} A</span>
+          <div className="ml-auto shrink-0"><ActionMenu label="Adicionar medição" actions={(Object.keys(METER_INFO) as MeterKind[]).map(k => ({ label: METER_INFO[k].name, run: () => set({ meters: [...meters, newMeter(k, meters, tri)] }) }))} /></div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {meters.map(m => (
+            <div key={m.id} className="flex items-center gap-2 rounded border border-border p-2 text-xs">
+              <svg width={44} height={52} viewBox="-22 -26 44 52" className="shrink-0 text-brand-blue"><ElectricalSymbol kind={METER_SYMBOL[m.kind]} /></svg>
+              <div className="min-w-0 flex-1">
+                <input className={`${sel} w-16 font-bold`} value={m.label} onChange={ev => set({ meters: meters.map(x => x.id === m.id ? { ...x, label: ev.target.value } : x) })} />
+                <div className="truncate">{METER_INFO[m.kind].name}</div>
+                <div className="text-muted-foreground">{m.kind === "TI" ? tiRatio(panelIb).label : `${METER_INFO[m.kind].din} mód. DIN`}</div>
+              </div>
+              Qtd <input type="number" min={1} className={`${sel} w-12`} value={m.qty} onChange={ev => set({ meters: meters.map(x => x.id === m.id ? { ...x, qty: Math.max(1, +ev.target.value) } : x) })} />
+              <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ meters: meters.filter(x => x.id !== m.id) })}>🗑</Button>
+            </div>
+          ))}
+          {!meters.length && <span className="text-xs text-muted-foreground">Sem aparelhos de medição. Adicione TI, amperímetro, analisador, Modbus ou KNX.</span>}
+        </div>
       </div>
     </div>
   );

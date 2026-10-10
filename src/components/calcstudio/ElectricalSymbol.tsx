@@ -1,6 +1,10 @@
 import type { ControlKind } from "@/lib/calc/equipment";
 
-export type SymbolKind = "breaker" | "switch" | "rcd" | "rcbo" | "fuse" | "fused-switch" | "terminal" | "earth" | "contactor" | "impulse" | "timer" | "clock" | "transformer" | "voltage" | "meter" | "ups" | "generator" | "ats" | "spd" | "coil" | "thermal" | "vsd" | "thermostat" | "pressure" | "ddc" | "twilight" | "lamp" | "socket" | "motor";
+export type SymbolKind = "breaker" | "switch" | "rcd" | "rcbo" | "fuse" | "fused-switch" | "terminal" | "earth" | "contactor" | "impulse" | "timer" | "clock" | "transformer" | "voltage" | "meter" | "ups" | "generator" | "ats" | "spd" | "coil" | "thermal" | "vsd" | "thermostat" | "pressure" | "ddc" | "twilight" | "lamp" | "socket" | "motor" | "ct" | "vt" | "ammeter" | "voltmeter" | "analyzer" | "modbus" | "knx" | "knxpsu";
+
+export const METER_SYMBOL: Record<import("@/lib/calc/equipment").MeterKind, SymbolKind> = {
+  TI: "ct", TT: "vt", Amperimetro: "ammeter", Voltimetro: "voltmeter", Analisador: "analyzer", Contador: "meter", Modbus: "modbus", KNX: "knx", FonteKNX: "knxpsu",
+};
 
 export const CONTROL_SYMBOL: Record<ControlKind, SymbolKind> = {
   Telerruptor: "impulse", Escada: "timer", Contactor: "contactor", Crepuscular: "twilight",
@@ -38,6 +42,13 @@ export function ElectricalSymbol({ kind, x = 0, y = 0 }: { kind: SymbolKind; x?:
     case "thermostat": case "pressure": shape = <>{contact}<circle cx={-13} r={7} /><text x={-13} y={3} textAnchor="middle" stroke="none" fill="currentColor" fontSize={9}>{kind === "pressure" ? "P" : "ϑ"}</text><path d="M-6 0H4" strokeDasharray="2 2" /></>; break;
     case "ddc": shape = <><path d="M0 -22V-11 M0 11V22" /><path d="M-13 -11H13V11H-13Z M-19 -6H-13 M-19 0H-13 M-19 6H-13 M13 -6H19 M13 0H19 M13 6H19" /><text y={3} textAnchor="middle" stroke="none" fill="currentColor" fontSize={8}>I/O</text></>; break;
     case "socket": shape = <><path d="M0 -22V-10 M-10 0A10 10 0 0 1 10 0 M-5 0V7 M5 0V7 M0 -6V0" /></>; break;
+    case "ct": shape = <><path d="M0 -22V22 M-14 0H-8 M8 0H14" /><circle r={8} /><text x={16} y={-10} stroke="none" fill="currentColor" fontSize={7}>S1 S2</text></>; break;
+    case "vt": shape = <><path d="M0 -22V-14 M0 14V22" /><circle cy={-6} r={8} /><circle cy={6} r={8} /><text x={11} y={3} stroke="none" fill="currentColor" fontSize={7}>TT</text></>; break;
+    case "ammeter": case "voltmeter":
+      shape = <><path d="M0 -22V-12 M0 12V22" /><circle r={12} /><text y={5} textAnchor="middle" stroke="none" fill="currentColor" fontSize={13}>{kind === "ammeter" ? "A" : "V"}</text></>; break;
+    case "analyzer": shape = <><path d="M0 -22V-12 M0 12V22" /><rect x={-14} y={-12} width={28} height={24} /><path d="M-10 4L-5 -2L0 3L5 -6L10 0" /><text y={10} textAnchor="middle" stroke="none" fill="currentColor" fontSize={6}>kW·cos</text></>; break;
+    case "modbus": case "knx": case "knxpsu":
+      shape = <><path d="M0 -22V-10 M0 10V22 M14 0H22" strokeDasharray={kind === "knxpsu" ? undefined : "3 2"} /><rect x={-14} y={-10} width={28} height={20} /><text y={4} textAnchor="middle" stroke="none" fill="currentColor" fontSize={kind === "modbus" ? 6 : 8}>{kind === "modbus" ? "RS485" : kind === "knx" ? "KNX" : "PSU"}</text></>; break;
   }
   return <g transform={`translate(${x},${y})`} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="square" strokeLinejoin="miter">{shape}</g>;
 }
@@ -51,4 +62,6 @@ export const SYMBOL_LEGEND: Array<[SymbolKind, string]> = [
   ["ups", "Alimentação ininterrupta / UPS"], ["spd", "DST"], ["coil", "Bobina MX"], ["ats", "Inversor Rede / Gerador"],
   ["thermal", "Relé térmico"], ["vsd", "Variador de velocidade"], ["twilight", "Interruptor crepuscular"],
   ["thermostat", "Termóstato"], ["pressure", "Pressostato / fluxostato"], ["ddc", "DDC / PLC / BMS"],
+  ["ct", "Transformador de intensidade (TI)"], ["vt", "Transformador de tensão (TT)"], ["ammeter", "Amperímetro"], ["voltmeter", "Voltímetro"],
+  ["analyzer", "Analisador de redes"], ["modbus", "Gateway Modbus RS485"], ["knx", "Actuador KNX"], ["knxpsu", "Fonte KNX"],
 ];

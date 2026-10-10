@@ -1,6 +1,10 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Panel, ProjectInfo } from "./storage";
+import { auditPanel } from "./audit";
+import { checkRCD } from "./rcd";
+import { capacitorBank } from "./capacitor";
+import { dinLayout, enclosureFor, genSet, atsRating, transformerIccKA, METER_INFO, CONTROL_INFO, tiRatio, sizeBusbar } from "./equipment";
 import { computeCircuit, feederDeltaU, phaseImbalance, pickMainDevice, panelIccKA, effectiveFeeder, type FeederContext } from "./engine";
 
 const FOOTER = "PLUGTECH CalcStudio • sergiojoa931@gmail.com • WhatsApp +244 931 728 474 • TECNOLOGIA QUE LIGA SOLUÇÕES";
@@ -252,9 +256,18 @@ function childrenOf(panels: Panel[], panel: Panel): Panel[] {
 }
 
 // ============================ RELATÓRIO PRINCIPAL ============================
-export async function exportPDF(panels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string; project?: ProjectInfo }) {
+export type ReportSection = "criterios" | "hierarquia" | "cargas" | "diferenciais" | "equipamento" | "unifilar" | "frontal" | "selectividade" | "condensadores" | "auditoria" | "quantidades" | "assinaturas";
+export const REPORT_SECTIONS: Array<[ReportSection, string]> = [
+  ["criterios", "Critérios de cálculo"], ["hierarquia", "Hierarquia de quadros"], ["cargas", "Mapa de cargas"],
+  ["diferenciais", "Diferenciais"], ["equipamento", "Equipamentos e fontes (TR, GE, UPS, medição)"], ["unifilar", "Diagrama unifilar"],
+  ["frontal", "Frontal DIN e caixa"], ["selectividade", "Selectividade e coordenação"], ["condensadores", "Condensadores (cos φ)"],
+  ["auditoria", "Auditoria"], ["quantidades", "Mapa de quantidades"], ["assinaturas", "Validação e assinaturas"],
+];
+export async function exportPDF(allPanels: Panel[], activeId: string | null, opts?: { logoDataUrl?: string; project?: ProjectInfo; sections?: ReportSection[]; scope?: "panel" | "project"; cosTarget?: number }) {
   const doc = patchText(new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }));
+  const panels = opts?.scope === "panel" ? allPanels.filter(p => p.id === activeId) : allPanels;
   if (!panels.length) return;
+  const on = (k: ReportSection) => !opts?.sections || opts.sections.includes(k);
   const logo = opts?.logoDataUrl;
 
   // ---------- Capa ----------
@@ -306,6 +319,7 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   idx.forEach((t, i) => doc.text(t, 14, y + i * 5.5));
 
   // ---------- 1. Critérios ----------
+  if (on("criterios")) {
   doc.addPage("a4", "landscape");
   header(doc, "1. Critérios de Cálculo", logo);
   y = TOP_MARGIN;
@@ -324,18 +338,22 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   ];
   criterios.forEach(t => { y = ensureSpace(doc, y, textHeight(doc, t, 8.5, 4.5), "1. Critérios de Cálculo", logo); y = bullet(doc, t, y); });
 
+  }
   // ---------- 2. Diagrama de quadros ----------
+  if (on("hierarquia")) {
   doc.addPage("a4", "landscape");
   header(doc, "2. Diagrama de Quadros", logo);
   y = TOP_MARGIN;
   y = sectionTitle(doc, "2. Diagrama de quadros — hierarquia de alimentação", y);
   drawPanelTree(doc, panels, y);
+  }
 
   // ---------- 3 e 4. Por quadro ----------
   const ordered = orderPanels(panels, activeId);
   ordered.forEach((panel, pi) => {
     const t = panelTotals(panel);
-
+    const kids = childrenOf(panels, panel);
+    if (on("cargas")) {
     doc.addPage("a4", "landscape");
     header(doc, `Quadro ${panel.name}`, logo);
     y = TOP_MARGIN;
@@ -422,9 +440,11 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     y = paragraph(doc, `Módulos DIN estimados (reserva 30%): ${modulesTotal}`, y, 8.5);
     y = paragraph(doc, `Desequilíbrio de fases: L1 = ${imb.L1.toFixed(0)} W · L2 = ${imb.L2.toFixed(0)} W · L3 = ${imb.L3.toFixed(0)} W  (${imb.pct.toFixed(1)} %)`, y, 8.5);
     y += 4;
-
+    }
+    extraPanelSections(doc, panel, t, on, logo, opts?.cosTarget ?? 0.95);
 
     // --------- Selectividade e coordenação deste quadro ---------
+    if (on("selectividade")) {
     doc.addPage("a4", "landscape");
     header(doc, `Selectividade — ${panel.name}`, logo);
     y = TOP_MARGIN;
@@ -491,7 +511,6 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     });
 
     // Selectividade com quadros parciais alimentados por este quadro
-    const kids = childrenOf(panels, panel);
     if (kids.length) {
       // @ts-ignore
       y = (doc as any).lastAutoTable.finalY + 6;
@@ -529,13 +548,17 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
       });
     }
 
+    }
     // Diagrama de blocos do quadro
+    if (on("unifilar")) {
     doc.addPage("a4", "landscape");
-    header(doc, `Diagrama de blocos — ${panel.name}`, logo);
+    header(doc, `Diagrama unifilar — ${panel.name}`, logo);
     drawBlockDiagram(doc, panel, kids);
+    }
   });
 
   // ---------- 6. Materiais globais ----------
+  if (on("quantidades")) {
   doc.addPage("a4", "landscape");
   header(doc, "6. Lista Global de Materiais", logo);
   y = sectionTitle(doc, "6. Lista global de materiais (todos os quadros)", TOP_MARGIN);
@@ -557,6 +580,19 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
     matCables.set(fk, (matCables.get(fk) || 0) + panel.feederLength * par);
     const gk = `Aparelho de corte geral ${t.mainRating}A (${panel.name})`;
     matBreakers.set(gk, (matBreakers.get(gk) || 0) + 1);
+    const addM = (k: string, n = 1) => matBreakers.set(k, (matBreakers.get(k) || 0) + n);
+    for (const d of panel.rcds ?? []) addM(`Interruptor diferencial ${d.inA}A ${d.iAnmA}mA tipo ${d.kind} ${d.poles}P`);
+    const e = panel.equip ?? {};
+    if (e.spd) addM(`DST ${e.spd.type} ${e.spd.poles === 4 ? "3P+N" : "1P+N"} ${e.spd.iKA}kA`);
+    if (e.mxFitted) addM("Bobina de emissão MX");
+    if (e.ats) { addM(`Inversor Rede/Gerador ${atsRating(t.ibTot, e.ats)}A ${e.ats.mode}`); addM(`Grupo gerador ${e.ats.genKVA} kVA`, e.ats.genCount ?? 1); }
+    if (e.ups) { addM(`UPS ${e.ups.kVA} kVA ${(e.ups.phases ?? 3) === 3 ? "trifásica" : "monofásica"}`); if (e.ups.bypass) addM("Comutador bypass UPS"); }
+    if (e.transformer?.active) addM(`Transformador ${e.transformer.kVA} kVA ucc ${e.transformer.ucc}%`);
+    for (const m of e.meters ?? []) addM(m.kind === "TI" ? `TI ${tiRatio(t.ibTot).label}` : METER_INFO[m.kind].name, m.qty);
+    for (const c of e.controls ?? []) addM(CONTROL_INFO[c.kind].name);
+    for (const b of e.buses ?? []) addM(`Barramento Cu ${sizeBusbar(t.ibTot, busIcc(panel)).bar} mm (${b.name})`);
+    const box = enclosureFor(dinLayout(panel.circuits.map(c => ({ c, r: computeCircuit(c, t.ctx) })), e, panel.rcds ?? [], panel.phase === "Tri" ? 4 : 2, t.mainRating).reduce((a, x) => a + x.mods, 0));
+    addM(`Caixa ${box.label} (${panel.name})`);
   });
   autoTable(doc, {
     ...tableBase(9),
@@ -581,7 +617,9 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   });
 
 
+  }
   // ---------- 7. Assinaturas ----------
+  if (on("assinaturas")) {
   doc.addPage("a4", "landscape");
   header(doc, "7. Validação Técnica", logo);
   doc.setFillColor(255, 255, 255);
@@ -602,11 +640,78 @@ export async function exportPDF(panels: Panel[], activeId: string | null, opts?:
   doc.text("Técnico Responsável", leftSigX + sigW / 2, baseY + 6, { align: "center" });
   doc.text("Cliente", rightSigX + sigW / 2, baseY + 6, { align: "center" });
   doc.text(`Data: ${new Date().toLocaleDateString("pt-PT")}`, leftSigX, baseY + 16);
-
+  }
 
   addFooter(doc);
   const fileBase = p?.obra ? p.obra.replace(/[^\w\-]+/g, "_") : "Projeto";
   doc.save(`PLUGTECH_Relatorio_${fileBase}.pdf`);
+}
+
+type Totals = ReturnType<typeof panelTotals>;
+function simpleTable(doc: jsPDF, y: number, head: string[], body: string[][], title: string, logo?: string) {
+  autoTable(doc, { ...tableBase(7), startY: y, head: [head], body: body.length ? body : [[ "—", ...head.slice(1).map(() => "") ]], margin: { left: MARGIN, right: MARGIN, top: TOP_MARGIN }, tableWidth: usableWidth(doc), showHead: "everyPage", didDrawPage: () => header(doc, title, logo) });
+  // @ts-ignore
+  return (doc as any).lastAutoTable.finalY + 6;
+}
+/** Secções adicionais por quadro: diferenciais, equipamento, frontal, condensadores, auditoria. */
+function extraPanelSections(doc: jsPDF, panel: Panel, t: Totals, on: (k: ReportSection) => boolean, logo: string | undefined, cosTarget: number) {
+  const rows = panel.circuits.map(c => ({ c, r: computeCircuit(c, t.ctx) }));
+  const e = panel.equip ?? {};
+  const icc = busIcc(panel);
+  const page = (title: string) => { doc.addPage("a4", "landscape"); header(doc, title, logo); return TOP_MARGIN; };
+  if (on("diferenciais") && (panel.rcds ?? []).length) {
+    const title = `Diferenciais — ${panel.name}`; let y = page(title);
+    y = sectionTitle(doc, title, y);
+    simpleTable(doc, y, ["DR", "In (A)", "IΔn (mA)", "Tipo", "Polos", "Circuitos", "ΣIb (A)", "Estado"], (panel.rcds ?? []).map(d => { const ck = checkRCD(d, rows); return [d.label, String(d.inA), String(d.iAnmA), d.kind, `${d.poles}P`, rows.filter(x => d.circuitIds.includes(x.c.id)).map(x => x.c.name).join(", "), ck.ibSum.toFixed(1), ck.ok ? "Conforme" : ck.issues.join("; ")]; }), title, logo);
+  }
+  if (on("equipamento") && (e.transformer?.active || e.ats || e.ups || e.spd || e.mxFitted || e.meters?.length || e.controls?.length || e.buses?.length)) {
+    const title = `Equipamentos e fontes — ${panel.name}`; let y = page(title);
+    y = sectionTitle(doc, title, y);
+    const body: string[][] = [];
+    if (e.transformer?.active) body.push(["Transformador", `${e.transformer.kVA} kVA · ucc ${e.transformer.ucc} %`, e.transformer.manual ? `Icc manual ${e.transformer.manualKA} kA (calc. ${transformerIccKA(e.transformer.kVA, e.transformer.ucc)} kA)` : `Icc = Sn/(raiz(3)·U·ucc) = ${transformerIccKA(e.transformer.kVA, e.transformer.ucc)} kA`]);
+    if (e.ats) { const g = genSet(e.ats); body.push(["Gerador(es)", `${e.ats.genCount ?? 1} × ${e.ats.genKVA} kVA ${(e.ats.genCount ?? 1) === 2 ? `(${e.ats.genMode ?? "Paralelo"})` : ""}`, `Total ${g.kVA} kVA · In ${g.In.toFixed(0)} A · Icc ${g.icc.toFixed(0)} A`]); body.push(["Inversor Rede/Gerador", e.ats.mode === "Auto" ? "ATS automático" : "Manual I-0-II", `Calibre automático ${atsRating(t.ibTot, e.ats)} A`]); }
+    if (e.ups) body.push(["UPS", `${e.ups.kVA} kVA ${(e.ups.phases ?? 3) === 3 ? "trifásica 400 V" : "monofásica 230 V"} · FP ${e.ups.pf ?? 0.9}`, `Autonomia ${e.ups.autonomyMin} min${e.ups.bypass ? " · bypass" : ""}`]);
+    if (e.spd) body.push(["DST", `${e.spd.type} · ${e.spd.poles === 4 ? "3P+N" : "1P+N"} · ${e.spd.iKA} kA`, `Proteção ${e.spd.backupA} A`]);
+    if (e.mxFitted) body.push(["Bobina MX", "Corte de emergência", (e.mxTriggers ?? []).join(", ") || "—"]);
+    for (const m of e.meters ?? []) body.push([METER_INFO[m.kind].name, `${m.label} × ${m.qty}`, m.kind === "TI" ? `Relação ${tiRatio(t.ibTot).label}` : `${METER_INFO[m.kind].din} mód. DIN`]);
+    for (const c of e.controls ?? []) body.push([CONTROL_INFO[c.kind].name, c.label, `${c.circuitIds.length} circuitos · bobina ${c.coilV} V`]);
+    for (const b of e.buses ?? []) body.push(["Barramento", b.name, `${b.kind} · ${b.circuitIds.length} circuitos`]);
+    simpleTable(doc, y, ["Equipamento", "Características", "Cálculo / observação"], body, title, logo);
+  }
+  if (on("frontal")) {
+    const title = `Frontal DIN — ${panel.name}`; let y = page(title);
+    const items = dinLayout(rows, e, panel.rcds ?? [], panel.phase === "Tri" ? 4 : 2, t.mainRating);
+    const box = enclosureFor(items.reduce((a, x) => a + x.mods, 0));
+    y = sectionTitle(doc, `${title} · Caixa ${box.label} · ${box.used} mód. ocupados`, y);
+    const W = usableWidth(doc), mod = Math.min(9, (W - 10) / box.perRow);
+    let r = 0, fill = 0; const x0 = MARGIN + 5;
+    doc.setDrawColor(150); doc.setFillColor(225, 228, 232); doc.roundedRect(MARGIN, y, box.perRow * mod + 10, box.rows * 32 + 8, 3, 3, "FD");
+    for (const it of items) {
+      if (fill + it.mods > box.perRow) { r++; fill = 0; }
+      const x = x0 + fill * mod, yy = y + 6 + r * 32;
+      doc.setFillColor(184, 190, 198); doc.rect(x0, yy + 11, box.perRow * mod, 3, "F");
+      doc.setFillColor(247, 248, 249); doc.setDrawColor(150); doc.rect(x, yy, it.mods * mod - 0.6, 25, "FD");
+      doc.setFillColor(43, 49, 56); doc.rect(x + it.mods * mod / 2 - 1.5, yy + 9, 3, 7, "F");
+      doc.setFontSize(5.5); doc.setTextColor(20); doc.text(it.label, x + it.mods * mod / 2, yy + 5, { align: "center" });
+      fill += it.mods;
+    }
+    y += box.rows * 32 + 14;
+    simpleTable(doc, y, ["Ref.", "Módulos", "Aparelho"], items.map(i => [i.label, String(i.mods), i.detail]), title, logo);
+  }
+  if (on("condensadores")) {
+    const p = rows.reduce((a, x) => a + x.c.power, 0), sv = rows.reduce((a, x) => a + x.r.s, 0);
+    const cos = sv > 0 ? p / sv : panel.cosphi;
+    const cb = capacitorBank(p / 1000, cos, cosTarget);
+    const title = `Compensação do fator de potência — ${panel.name}`; let y = page(title);
+    y = sectionTitle(doc, title, y);
+    simpleTable(doc, y, ["P (kW)", "cos φ atual", "cos φ alvo", "Qc (kvar)", "Bateria comercial", "Redução de S"], [[(p / 1000).toFixed(2), cos.toFixed(2), cosTarget.toFixed(2), cb.qc.toFixed(1), `${cb.commercial} kvar`, `${cb.reductionPct.toFixed(1)} %`]], title, logo);
+  }
+  if (on("auditoria")) {
+    const a = auditPanel({ computed: rows, ctx: t.ctx, imbalancePct: phaseImbalance(panel.circuits).pct, isQGE: panel.panelKind === "QGE", rcds: panel.rcds, equip: e, panelIb: t.ibTot, iccKA: icc });
+    const title = `Auditoria — ${panel.name} (pontuação ${a.score}/100)`; let y = page(title);
+    y = sectionTitle(doc, title, y);
+    simpleTable(doc, y, ["Nível", "Regra", "Circuito", "Observação"], a.issues.map(i => [i.level === "critical" ? "Crítico" : i.level === "warn" ? "Aviso" : "Info", i.rule, i.circuitName ?? "Quadro", i.msg]), title, logo);
+  }
 }
 
 function orderPanels(panels: Panel[], activeId: string | null): Panel[] {
