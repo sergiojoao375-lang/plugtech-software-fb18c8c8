@@ -8,8 +8,8 @@ import { capacitorBank } from "@/lib/calc/capacitor";
 import { curvePoints, selectivityLimit, type CurveKind } from "@/lib/calc/curves";
 import type { RCD } from "@/lib/calc/rcd";
 import type { PanelEquip } from "@/lib/calc/equipment";
-import { generatorIcc } from "@/lib/calc/equipment";
-import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND } from "./ElectricalSymbol";
+import { genSet, transformerOriginKA, dinLayout, enclosureFor, type DinItem } from "@/lib/calc/equipment";
+import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND, METER_SYMBOL } from "./ElectricalSymbol";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
 
@@ -201,7 +201,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
         <Button variant="ghost" size="icon" className="ml-auto" aria-label={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} title={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 /> : <Maximize2 />}</Button>
       </div>
       <div className="single-line-canvas">
-      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
+      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length || equip.transformer?.active || equip.meters?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
       <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="bg-background text-foreground">
         <text x={16} y={24} className="fill-foreground" fontSize={14} fontWeight={700}>{panelName} — Esquema unifilar</text>
         <path d={`M40 34V43 M40 87V${busY}`} stroke="currentColor" fill="none" strokeWidth={2} />
@@ -271,16 +271,18 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
 
 /* ---------------- Fontes, inversor, MX, DST, UPS, barramentos ---------------- */
 function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainLabel: string; zoom?: number }) {
-  if (!(e.ats || e.ups || e.spd || e.mxFitted || e.buses?.length)) return null;
+  if (!(e.ats || e.ups || e.spd || e.mxFitted || e.buses?.length || e.transformer?.active || e.meters?.length)) return null;
+  const meters = (e.meters ?? []);
   const buses = e.buses ?? [];
   const W = Math.max(800, 420 + buses.length * 180);
   return <svg width={W * zoom} height={430 * zoom} viewBox={`0 0 ${W} 430`} role="img" aria-label="Alimentação e equipamento do quadro" className="mb-3 bg-background text-foreground">
     <text x={16} y={24} fontSize={12} fontWeight={700} className="fill-foreground">Alimentação e equipamento do quadro</text>
-    <path d="M90 50V92" stroke="currentColor" strokeWidth={2} /><text x={105} y={65} fontSize={11} className="fill-foreground">REDE</text>
+    {e.transformer?.active ? <><ElectricalSymbol kind="transformer" x={90} y={62} /><text x={105} y={58} fontSize={11} className="fill-foreground">TR {e.transformer.kVA} kVA · ucc {e.transformer.ucc}%</text><text x={105} y={72} fontSize={9} className="fill-muted-foreground">Icc {transformerOriginKA(e.transformer)} kA{e.transformer.manual ? " (manual)" : ""}</text><path d="M90 84V92" stroke="currentColor" strokeWidth={2} /></> : <><path d="M90 50V92" stroke="currentColor" strokeWidth={2} /><text x={105} y={65} fontSize={11} className="fill-foreground">REDE</text></>}
     {e.ats ? <>
       <ElectricalSymbol kind="generator" x={230} y={70} />
-      <text x={252} y={66} fontSize={11} className="fill-warning">GERADOR · {e.ats.genKVA} kVA</text>
-      <text x={252} y={81} fontSize={9} className="fill-muted-foreground">Icc ≈ {generatorIcc(e.ats.genKVA).icc.toFixed(0)} A</text>
+      {(e.ats.genCount ?? 1) === 2 && <ElectricalSymbol kind="generator" x={300} y={70} />}
+      <text x={(e.ats.genCount ?? 1) === 2 ? 322 : 252} y={66} fontSize={11} className="fill-warning">{(e.ats.genCount ?? 1) === 2 ? `2 × ${e.ats.genKVA} kVA (${e.ats.genMode ?? "Paralelo"})` : `GERADOR · ${e.ats.genKVA} kVA`}</text>
+      <text x={(e.ats.genCount ?? 1) === 2 ? 322 : 252} y={81} fontSize={9} className="fill-muted-foreground">Icc ≈ {genSet(e.ats).icc.toFixed(0)} A</text>
       <path d="M90 92V108H146 M230 92V108H174" stroke="currentColor" fill="none" strokeWidth={2} />
       <ElectricalSymbol kind="ats" x={160} y={130} />
       <path d="M160 152V168H90V178" stroke="currentColor" fill="none" strokeWidth={2} />
@@ -305,6 +307,7 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
       <text x={W - 88} y={405} textAnchor="end" fontSize={10} fill="currentColor">DST {e.spd.type} · {e.spd.poles}P · {e.spd.iKA} kA</text>
       <text x={W - 88} y={419} textAnchor="end" fontSize={9} className="fill-muted-foreground">Proteção a montante {e.spd.backupA} A · PE</text>
     </g>}
+    {meters.map((m, i) => <g key={m.id} className="text-brand-green"><ElectricalSymbol kind={METER_SYMBOL[m.kind]} x={W - 470 - i * 62} y={240} /><text x={W - 470 - i * 62} y={276} textAnchor="middle" fontSize={8} fill="currentColor">{m.label}{m.qty > 1 ? ` ×${m.qty}` : ""}</text></g>)}
     {buses.map((b, i) => {
       const x = 100 + i * 180;
       return <g key={b.id} className={b.kind === "UPS" ? "text-destructive" : b.kind === "Socorro" ? "text-warning" : "text-brand-blue"}>
@@ -317,40 +320,88 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
 }
 
 /* ---------------- Frontal DIN ---------------- */
-export function DinFrontView({ rows, mainPoles }: { rows: Row[]; mainPoles: number }) {
-  const PER_ROW = 24, MOD = 18, scale = 2;
-  const items = [{ label: "GERAL", mods: mainPoles, main: true }, ...rows.map((x, i) => ({ label: `C${i + 1}`, mods: x.r.modules, main: false, name: x.c.name, in: x.r.in }))];
+const v = (n: string) => `var(--din-${n})`;
+function DinDevice({ it, x, y }: { it: DinItem; x: number; y: number }) {
+  const w = it.mods * 18 - 1.5, hgt = 88;
+  const screws = Array.from({ length: Math.max(1, Math.min(it.mods, it.poles)) }, (_, k) => x + (w / Math.max(1, Math.min(it.mods, it.poles))) * (k + 0.5));
+  const cx = x + w / 2;
+  return <g>
+    <title>{it.detail}</title>
+    <rect x={x} y={y} width={w} height={hgt} rx={2} fill={v("device")} stroke={v("device-edge")} />
+    <rect x={x + 1} y={y + 26} width={w - 2} height={36} fill={v("backplate")} stroke={v("device-edge")} strokeWidth={0.5} />
+    {screws.map((sx, k) => <g key={k}><circle cx={sx} cy={y + 8} r={3.2} fill={v("rail")} stroke={v("rail-hole")} /><path d={`M${sx - 2} ${y + 8}H${sx + 2}`} stroke={v("rail-hole")} /><circle cx={sx} cy={y + hgt - 8} r={3.2} fill={v("rail")} stroke={v("rail-hole")} /><path d={`M${sx - 2} ${y + hgt - 8}H${sx + 2}`} stroke={v("rail-hole")} /></g>)}
+    {(it.kind === "screen") ? <><rect x={x + 4} y={y + 30} width={w - 8} height={18} rx={1} fill={v("screen")} stroke={v("handle")} /><text x={cx} y={y + 43} textAnchor="middle" fontSize={8} fontFamily="monospace" fill={v("label")}>{it.label.startsWith("PV") ? "400V" : it.label.startsWith("PA") ? "000A" : "kW cos"}</text><circle cx={x + 6} cy={y + 55} r={1.6} fill={v("pe")} /></>
+      : it.kind === "comm" ? <><rect x={x + 4} y={y + 32} width={w - 8} height={12} rx={1} fill={v("handle")} /><circle cx={x + 8} cy={y + 52} r={2} fill={v("pe")} /><circle cx={x + 14} cy={y + 52} r={2} fill={v("test")} /><text x={cx} y={y + 41} textAnchor="middle" fontSize={6.5} fill={v("device")}>{it.label}</text></>
+      : it.kind === "spd" ? screws.map((sx, k) => <rect key={k} x={sx - 4} y={y + 32} width={8} height={8} fill={v("pe")} stroke={v("handle")} strokeWidth={0.5} />)
+      : <><rect x={cx - Math.min(w / 2 - 3, it.mods * 6)} y={y + 30} width={Math.min(w - 6, it.mods * 12)} height={26} rx={2} fill={v("handle")} /><rect x={cx - Math.min(w / 2 - 5, it.mods * 6 - 2)} y={y + 31} width={Math.min(w - 10, it.mods * 12 - 4)} height={10} rx={1} fill={it.kind === "main" ? v("n") : v("device-edge")} /></>}
+    {it.kind === "rcd" && <><circle cx={x + w - 7} cy={y + 52} r={4} fill={v("test")} stroke={v("handle")} strokeWidth={0.5} /><text x={x + w - 7} y={y + 54.5} textAnchor="middle" fontSize={6} fontWeight={700} fill={v("label")}>T</text></>}
+    <rect x={x + 2} y={y + 64} width={w - 4} height={12} fill={v("device")} stroke={v("device-edge")} strokeWidth={0.5} />
+    <text x={cx} y={y + 22} textAnchor="middle" fontSize={7} fontWeight={700} fill={v("label")}>{it.label}</text>
+    <text x={cx} y={y + 73} textAnchor="middle" fontSize={6} fill={v("label")}>{(it.detail.match(/\d+ ?A[^ ]*/)?.[0] ?? "").slice(0, Math.max(3, it.mods * 4))}</text>
+  </g>;
+}
+
+export function DinFrontView({ rows, mainPoles, equip = {}, rcds = [], mainRating = 63, panelName = "Quadro" }: { rows: Row[]; mainPoles: number; equip?: PanelEquip; rcds?: RCD[]; mainRating?: number; panelName?: string }) {
+  const items = dinLayout(rows, equip, rcds, mainPoles, mainRating);
   const used = items.reduce((a, b) => a + b.mods, 0);
-  const total = Math.ceil(used * 1.3);
-  const nRows = Math.max(1, Math.ceil(total / PER_ROW));
-  const rowsOut: Array<typeof items> = Array.from({ length: nRows }, () => []);
+  const box = enclosureFor(used);
+  const MOD = 18, DUCT = 34, PITCH = 150, TOP = 50;
+  const rowsOut: DinItem[][] = Array.from({ length: box.rows }, () => []);
   let r = 0, fill = 0;
-  for (const it of items) { if (fill + it.mods > PER_ROW) { r++; fill = 0; } if (!rowsOut[r]) rowsOut[r] = []; rowsOut[r].push(it); fill += it.mods; }
-  const W = PER_ROW * MOD * scale + 40;
+  for (const it of items) { if (fill + it.mods > box.perRow) { r++; fill = 0; } if (!rowsOut[r]) rowsOut[r] = []; rowsOut[r].push(it); fill += it.mods; }
+  const railW = box.perRow * MOD;
+  const W = railW + DUCT * 2 + 60, H = TOP + rowsOut.length * PITCH + 110;
+  const x0 = 30 + DUCT;
+  const [zoom, setZoom] = useState(1.4);
+  const placed = items.filter(i => i.kind !== "breaker").length;
   return (
     <div className="overflow-auto p-4">
-      <div className="mb-2 text-sm"><b>Frontal do quadro</b> — {used} módulos ocupados · {total} com reserva de 30 % · {rowsOut.length} fila(s) de {PER_ROW} módulos</div>
-      <div className="inline-block rounded-xl border-4 border-[color:var(--surface-2)] bg-card p-5" style={{ width: W }}>
-        {rowsOut.map((row, k) => {
-          const occ = row.reduce((a, b) => a + b.mods, 0);
-          return (
-            <div key={k} className="relative mb-5 flex h-28 items-center rounded bg-[color:var(--surface-2)] px-0">
-              <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 bg-muted-foreground/30" />
-              {row.map((it, j) => (
-                <div key={j} title={"name" in it ? `${it.name} — ${it.in} A` : "Aparelho geral"}
-                  className={`relative z-10 flex h-24 flex-col items-center justify-between rounded-sm border py-1 text-[9px] font-bold ${it.main ? "border-[color:var(--brand-blue)] bg-[color:var(--brand-blue)]/30" : "border-border bg-background"}`}
-                  style={{ width: it.mods * MOD * scale }}>
-                  <span>{it.label}</span><span className="h-6 w-3 rounded-sm bg-foreground/80" /><span>{"in" in it ? `${it.in}A` : ""}</span>
-                </div>
-              ))}
-              {Array.from({ length: Math.max(0, PER_ROW - occ) }).map((_, j) => (
-                <div key={`r${j}`} className="relative z-10 h-24 rounded-sm border border-dashed border-muted-foreground/40" style={{ width: MOD * scale }} />
-              ))}
-            </div>
-          );
-        })}
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <b>Frontal do quadro — {panelName}</b>
+        <span className="text-muted-foreground">{used} módulos ocupados · {box.need} com reserva 30 % · Caixa {box.label}</span>
+        <span className="text-xs text-muted-foreground">{placed} equipamentos + {rows.length} circuitos</span>
+        <div className="ml-auto flex gap-1"><Button size="icon" variant="outline" aria-label="Reduzir" onClick={() => setZoom(z => Math.max(0.6, z - 0.2))}><Minus /></Button><Button size="icon" variant="outline" aria-label="Ampliar" onClick={() => setZoom(z => Math.min(3, z + 0.2))}><Plus /></Button></div>
       </div>
-      <div className="mt-2 text-xs text-muted-foreground">Cada módulo = 18 mm. Espaços tracejados = reserva disponível.</div>
+      <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Frontal DIN do quadro">
+        <defs>
+          <pattern id="din-rail-holes" width={18} height={7.5} patternUnits="userSpaceOnUse"><rect width={18} height={7.5} fill={v("rail")} /><rect x={5} y={2} width={8} height={3.5} rx={1.5} fill={v("rail-hole")} /></pattern>
+          <pattern id="din-duct" width={10} height={14} patternUnits="userSpaceOnUse"><rect width={10} height={14} fill={v("duct")} /><rect x={1} y={0} width={4} height={10} fill={v("duct-slot")} /></pattern>
+          <pattern id="din-pe" width={8} height={8} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width={8} height={8} fill={v("pe")} /><rect width={4} height={8} fill={v("pe-stripe")} /></pattern>
+          <linearGradient id="din-cu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={v("copper")} /><stop offset="1" stopColor={v("copper-dark")} /></linearGradient>
+        </defs>
+        {/* caixa */}
+        <rect x={4} y={4} width={W - 8} height={H - 8} rx={14} fill={v("enclosure")} stroke={v("enclosure-edge")} strokeWidth={3} />
+        <rect x={18} y={18} width={W - 36} height={H - 36} rx={6} fill={v("backplate")} stroke={v("enclosure-edge")} />
+        {[[14, 14], [W - 14, 14], [14, H - 14], [W - 14, H - 14]].map(([cx, cy], k) => <g key={k}><circle cx={cx} cy={cy} r={5} fill={v("rail")} stroke={v("enclosure-edge")} /><path d={`M${cx - 3} ${cy}H${cx + 3} M${cx} ${cy - 3}V${cy + 3}`} stroke={v("enclosure-edge")} /></g>)}
+        <text x={W / 2} y={38} textAnchor="middle" fontSize={11} fontWeight={700} fill={v("label")}>{panelName} · {box.label} · IP40</text>
+        {/* calhas laterais */}
+        <rect x={30} y={TOP} width={DUCT - 6} height={rowsOut.length * PITCH} fill="url(#din-duct)" />
+        <rect x={x0 + railW + 6} y={TOP} width={DUCT - 6} height={rowsOut.length * PITCH} fill="url(#din-duct)" />
+        {rowsOut.map((row, k) => {
+          const ry = TOP + k * PITCH + 20;
+          let cx = x0;
+          const breakers: Array<[number, number]> = [];
+          const devs = row.map((it, j) => { const x = cx; cx += it.mods * MOD; if (it.kind === "breaker") breakers.push([x, x + it.mods * MOD]); return <DinDevice key={j} it={it} x={x} y={ry} />; });
+          const occ = cx - x0;
+          return <g key={k}>
+            {k < rowsOut.length - 1 && <rect x={x0} y={ry + 104} width={railW} height={22} fill="url(#din-duct)" />}
+            <rect x={x0 - 6} y={ry + 40} width={railW + 12} height={7.5} fill="url(#din-rail-holes)" stroke={v("rail-hole")} strokeWidth={0.5} />
+            {devs}
+            {breakers.length > 1 && <rect x={breakers[0][0] + 2} y={ry + 3} width={breakers[breakers.length - 1][1] - breakers[0][0] - 4} height={4} rx={1} fill="url(#din-cu)" />}
+            {Array.from({ length: Math.max(0, box.perRow - Math.round(occ / MOD)) }).map((_, j) => <rect key={j} x={x0 + occ + j * MOD + 1} y={ry + 26} width={MOD - 2} height={36} fill={v("device")} stroke={v("device-edge")} strokeDasharray="2 2" opacity={0.7} />)}
+          </g>;
+        })}
+        {/* régua de bornes N / PE */}
+        {(() => { const ty = TOP + rowsOut.length * PITCH + 14; const n = Math.min(box.perRow * 2, Math.max(6, rows.length + 2)); const tw = Math.min(14, (railW - 40) / (n * 2)); return <g>
+          <rect x={x0 - 6} y={ty + 18} width={railW + 12} height={7.5} fill="url(#din-rail-holes)" />
+          {Array.from({ length: n }).map((_, k) => <rect key={`n${k}`} x={x0 + k * tw} y={ty} width={tw - 1.5} height={42} rx={1} fill={v("n")} />)}
+          {Array.from({ length: n }).map((_, k) => <rect key={`p${k}`} x={x0 + railW - n * tw + k * tw} y={ty} width={tw - 1.5} height={42} rx={1} fill="url(#din-pe)" />)}
+          <text x={x0} y={ty + 56} fontSize={8} fill={v("label")}>Bornes neutro N</text>
+          <text x={x0 + railW} y={ty + 56} textAnchor="end" fontSize={8} fill={v("label")}>Bornes terra PE</text>
+          {mainPoles === 4 && <g>{["l1", "l2", "l3", "n"].map((ph, k) => <rect key={ph} x={x0 + railW / 2 - 60} y={ty + 4 + k * 9} width={120} height={6} rx={1} fill={v(ph)} />)}<text x={x0 + railW / 2} y={ty + 56} textAnchor="middle" fontSize={8} fill={v("label")}>Barramento L1 L2 L3 N</text></g>}
+        </g>; })()}
+      </svg>
+      <div className="mt-2 text-xs text-muted-foreground">Cada módulo = 18 mm. Espaços tracejados = reserva disponível. Aparelhos acima de 63/125 A são montados em placa e não ocupam calha DIN.</div>
     </div>
   );
 }
