@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ActionMenu } from "./WorkspaceControls";
 import type { Circuit, CalcResult } from "@/lib/calc/engine";
 import {
-  CONTROL_INFO, MX_TRIGGERS, checkEquipment, generatorIcc, mxReasons, newControl, recommendSpd, sizeBusbar, busIb, terminals, upsIcc,
-  type Bus, type BusKind, type ControlKind, type ControlModule, type MxTrigger, type PanelEquip, type SpdType,
+  CONTROL_INFO, MX_TRIGGERS, METER_INFO, TRAFO_KVA, atsRating, checkEquipment, defaultUcc, genSet, mxReasons, newControl, newMeter, recommendSpd, sizeBusbar, busIb, terminals, tiRatio, transformerIccKA, transformerOriginKA, upsIcc,
+  type Bus, type BusKind, type ControlKind, type ControlModule, type MeterKind, type MxTrigger, type PanelEquip, type SpdType, type Transformer,
 } from "@/lib/calc/equipment";
+import { ElectricalSymbol, METER_SYMBOL } from "./ElectricalSymbol";
 
 type Row = { c: Circuit; r: CalcResult };
 const sel = "rounded border border-border bg-[color:var(--surface-2)] px-1 py-1 text-xs";
@@ -30,9 +31,11 @@ function CircuitPicker({ rows, ids, onToggle, taken }: { rows: Row[]; ids: strin
   );
 }
 
-export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA }: { equip: PanelEquip; rows: Row[]; onChange: (e: PanelEquip) => void; isQGE: boolean; panelIb: number; iccKA: number }) {
+export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA, tri = true, onOriginKA }: { equip: PanelEquip; rows: Row[]; onChange: (e: PanelEquip) => void; isQGE: boolean; panelIb: number; iccKA: number; tri?: boolean; onOriginKA?: (kA: number) => void }) {
   const e = equip;
   const set = (p: Partial<PanelEquip>) => onChange({ ...e, ...p });
+  const setTrafo = (t: Transformer) => { set({ transformer: t }); const k = transformerOriginKA(t); if (k !== null && onOriginKA) onOriginKA(k); };
+  const meters = e.meters ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const issues = checkEquipment(rows, e, isQGE, panelIb, iccKA);
   const reasons = mxReasons(rows, e);
@@ -188,6 +191,30 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA 
             </div>
           );
         })}
+      </div>
+
+      {/* Medição e comunicação */}
+      <div className={card}>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-bold">📟 Medição e comunicação</span>
+          <span className="text-xs text-muted-foreground">TI sugerido: {tiRatio(panelIb).label} para Ib {panelIb.toFixed(0)} A</span>
+          <div className="ml-auto shrink-0"><ActionMenu label="Adicionar medição" actions={(Object.keys(METER_INFO) as MeterKind[]).map(k => ({ label: METER_INFO[k].name, run: () => set({ meters: [...meters, newMeter(k, meters, tri)] }) }))} /></div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {meters.map(m => (
+            <div key={m.id} className="flex items-center gap-2 rounded border border-border p-2 text-xs">
+              <svg width={44} height={52} viewBox="-22 -26 44 52" className="shrink-0 text-brand-blue"><ElectricalSymbol kind={METER_SYMBOL[m.kind]} /></svg>
+              <div className="min-w-0 flex-1">
+                <input className={`${sel} w-16 font-bold`} value={m.label} onChange={ev => set({ meters: meters.map(x => x.id === m.id ? { ...x, label: ev.target.value } : x) })} />
+                <div className="truncate">{METER_INFO[m.kind].name}</div>
+                <div className="text-muted-foreground">{m.kind === "TI" ? tiRatio(panelIb).label : `${METER_INFO[m.kind].din} mód. DIN`}</div>
+              </div>
+              Qtd <input type="number" min={1} className={`${sel} w-12`} value={m.qty} onChange={ev => set({ meters: meters.map(x => x.id === m.id ? { ...x, qty: Math.max(1, +ev.target.value) } : x) })} />
+              <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ meters: meters.filter(x => x.id !== m.id) })}>🗑</Button>
+            </div>
+          ))}
+          {!meters.length && <span className="text-xs text-muted-foreground">Sem aparelhos de medição. Adicione TI, amperímetro, analisador, Modbus ou KNX.</span>}
+        </div>
       </div>
     </div>
   );
