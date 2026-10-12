@@ -13,3 +13,6 @@
 - Panel equipment (SPD, MX coil, ATS/generator, UPS, busbars, control modules with terminals) is stored in `Panel.equip`; logic in src/lib/calc/equipment.ts, UI in EquipmentManager.tsx — keeps checks reusable by audit and the single-line diagram.
 - Single-line electrical device glyphs are shared in `ElectricalSymbol.tsx`; render equipment from its actual kind and keep phase colors in CSS tokens — avoids generic boxes and inconsistent device representations.
 - Workspace navigation, grouped action menus, and circuit-to-RCD selectors live in `WorkspaceControls.tsx`; selectors update the existing `Panel.rcds` mapping — keeps protection consistent across tables, diagram, and audit without changing offline storage.
+- Every DIN-mounted device (main, RCDs, SPD, MX, ATS, bypass, meters, controls, circuits) comes from `dinLayout()` in equipment.ts; the frontal view, footer module count, enclosure size and PDF all use it — keeps the box sizing complete and consistent.
+- Transformer Icc is written into `Panel.iccOriginKA` when the transformer is active (auto formula or manual for existing units) — engine keeps one origin value.
+- PDF report sections are selectable via `ReportSection` in export.ts with panel/project scope.
