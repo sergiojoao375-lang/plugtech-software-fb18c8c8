@@ -398,7 +398,7 @@ export function DinFrontView({ rows, mainPoles, equip = {}, rcds = [], mainRatin
           {Array.from({ length: n }).map((_, k) => <rect key={`p${k}`} x={x0 + railW - n * tw + k * tw} y={ty} width={tw - 1.5} height={42} rx={1} fill="url(#din-pe)" />)}
           <text x={x0} y={ty + 56} fontSize={8} fill={v("label")}>Bornes neutro N</text>
           <text x={x0 + railW} y={ty + 56} textAnchor="end" fontSize={8} fill={v("label")}>Bornes terra PE</text>
-          {mainPoles === 4 && <g>{["l1", "l2", "l3", "n"].map((ph, k) => <rect key={ph} x={x0 + railW / 2 - 60} y={ty + 4 + k * 9} width={120} height={6} rx={1} fill={v(ph)} />)}<text x={x0 + railW / 2} y={ty + 56} textAnchor="middle" fontSize={8} fill={v("label")}>Barramento L1 L2 L3 N</text></g>}
+          {mainPoles === 4 && <g>{["l1", "l2", "l3", "n"].map((ph, k) => <rect key={ph} x={x0 + railW / 2 - 60} y={ty + 4 + k * 9} width={120} height={6} rx={1} fill={v(ph)} />)}<text x={x0 + railW / 2} y={ty - 3} textAnchor="middle" fontSize={8} fill={v("label")}>Barramento L1 L2 L3 N</text></g>}
         </g>; })()}
       </svg>
       <div className="mt-2 text-xs text-muted-foreground">Cada módulo = 18 mm. Espaços tracejados = reserva disponível. Aparelhos acima de 63/125 A são montados em placa e não ocupam calha DIN.</div>

@@ -7,14 +7,14 @@ import {
 } from "@/lib/calc/engine";
 import { loadState, saveState, emptyProject, seed, saveProjectFile, loadProjectFile, type AppState, type Panel, type ProjectInfo } from "@/lib/calc/storage";
 import { parseSpreadsheet, downloadImportTemplate } from "@/lib/calc/import";
-import { exportCSV, exportPDF } from "@/lib/calc/export";
+import { exportCSV, exportPDF, REPORT_SECTIONS, type ReportSection } from "@/lib/calc/export";
 import { ConduitCalculator } from "./ConduitCalculator";
 import { statusColors, classify, type Status } from "./status";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InlineCell, BatchBar, CircuitTemplates, AuditPanel, CircuitInspector, CapacitorBank, SingleLineDiagram, DinFrontView, TripCurves } from "./ProTools";
 import { RCDManager } from "./RCDManager";
 import { EquipmentManager } from "./EquipmentManager";
-import { circuitTags } from "@/lib/calc/equipment";
+import { circuitTags, dinLayout, enclosureFor, transformerOriginKA } from "@/lib/calc/equipment";
 import { auditPanel } from "@/lib/calc/audit";
 import { exportPanelDXF } from "@/lib/calc/dxf";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,9 @@ export default function CalcStudio() {
   const [showAbout, setShowAbout] = useState(false);
   const [showObra, setShowObra] = useState(false);
   const [showConduit, setShowConduit] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportScope, setReportScope] = useState<"panel" | "project">("project");
+  const [reportSections, setReportSections] = useState<ReportSection[]>(REPORT_SECTIONS.map(x => x[0]));
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>();
   const [view, setView] = useState<View>("unifilar");
   const [selIds, setSelIds] = useState<Set<string>>(new Set());
@@ -341,8 +344,8 @@ const totals = useMemo(() => {
   const ib = Math.max(phaseCurrents.L1, phaseCurrents.L2, phaseCurrents.L3);
 
     const cutNeed = ib * 1.25;
-    const modules = Math.ceil((panel.circuits.reduce((a, c) => a + (c.phase === "Tri" ? 3 : 2), 4)) * 1.3);
     const mainRating = pickMainDevice(cutNeed);
+    const modules = enclosureFor(dinLayout(computed, panel.equip ?? {}, panel.rcds ?? [], panel.phase === "Tri" ? 4 : 2, mainRating).reduce((a, x) => a + x.mods, 0)).need;
     const device = cutNeed > 100 ? "Fusíveis gG" : "Interruptor";
     const cut = `${device} ${mainRating}A`;
     return { p, ib, cutNeed, modules, cut, mainRating };
@@ -386,7 +389,7 @@ const totals = useMemo(() => {
             { label: "Eliminar quadro", run: deletePanel, danger: true },
           ]}
           exportActions={[
-            { label: "Relatório PDF", run: () => exportPDF(state.panels, panel.id, { logoDataUrl, project: state.project }) },
+            { label: "Relatório PDF…", run: () => setShowReport(true) },
             { label: "Esquema e cargas DXF", run: () => exportPanelDXF(panel, totals.cut, computed) },
             { label: "Tabela CSV", run: () => exportCSV(panel) },
           ]} />
@@ -434,13 +437,13 @@ const totals = useMemo(() => {
                 {/* Linha 2 - Coluna 1 (Inferior Esquerda) */}
                 <label className="flex flex-col">
                   <span className="text-muted-foreground font-medium">Icc origem (kA)</span>
-                  <select 
+                  {transformerOriginKA(panel.equip?.transformer) !== null ? <div className="mt-1 rounded border border-brand-green/40 bg-surface-2 px-2 py-1.5 text-sm text-brand-green" title="Definido pelo transformador no separador Equipamento">{panel.iccOriginKA} kA · transformador{panel.equip?.transformer?.manual ? " (manual)" : " (auto)"}</div> : <select 
                     value={panel.iccOriginKA}
                     onChange={e => updatePanel({ iccOriginKA: parseFloat(e.target.value) })}
                     className="mt-1 w-full rounded border border-border bg-[color:var(--surface-2)] px-2 py-1.5 text-sm"
                   >
                     {[3, 6, 10, 15, 20, 25, 35, 36, 50, 65, 70, 100].map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
+                  </select>}
                 </label>
 
                 {/* Linha 2 - Coluna 2 (Inferior Direita) */}
@@ -647,9 +650,9 @@ const totals = useMemo(() => {
         {view !== "circuitos" && (
           <section className={`technical-view min-h-0 min-w-0 flex-1 ${view === "unifilar" ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
             {view === "unifilar" && <><SingleLineDiagram rows={computed} rcds={panel.rcds ?? []} equip={panel.equip ?? {}} tags={circuitTags(panel.equip ?? {})} panelName={panel.name} mainLabel={totals.cut} onPick={c => { editCircuit(c); setView("circuitos"); }} /><DiagramCircuitList rows={computed} rcds={panel.rcds ?? []} onRcds={rcds => updatePanel({ rcds })} onPick={c => { editCircuit(c); setView("circuitos"); }} onAdd={() => { setView("circuitos"); setDraft(emptyDraft()); setShowCircuitForm(true); focusName(); }} /></>}
-            {view === "equipamento" && <EquipmentManager equip={panel.equip ?? {}} rows={computed} isQGE={panel.panelKind === "QGE"} panelIb={totals.ib} iccKA={panelIccKA(panel)} onChange={equip => updatePanel({ equip })} />}
+            {view === "equipamento" && <EquipmentManager equip={panel.equip ?? {}} rows={computed} isQGE={panel.panelKind === "QGE"} panelIb={totals.ib} iccKA={panelIccKA(panel)} tri={panel.phase === "Tri"} onOriginKA={k => updatePanel({ iccOriginKA: k })} onChange={equip => updatePanel({ equip })} />}
             {view === "diferenciais" && <RCDManager rcds={panel.rcds ?? []} rows={computed} onChange={rcds => updatePanel({ rcds })} />}
-            {view === "frontal" && <DinFrontView rows={computed} mainPoles={panel.phase === "Tri" ? 4 : 2} />}
+            {view === "frontal" && <DinFrontView rows={computed} mainPoles={panel.phase === "Tri" ? 4 : 2} equip={panel.equip ?? {}} rcds={panel.rcds ?? []} mainRating={totals.mainRating || 63} panelName={panel.name} />}
             {view === "curvas" && <TripCurves rows={computed} mainRating={totals.mainRating || 63} iccKA={panelIccKA(panel)} selectedId={selectedCircuitId} />}
             {view === "auditoria" && <AuditPanel issues={audit.issues} score={audit.score} onPick={id => { const c = panel.circuits.find(x => x.id === id); if (c) { editCircuit(c); setView("circuitos"); } }} />}
             {view === "cosphi" && <CapacitorBank key={panel.id} pW={totals.p} cosNow={realCos} />}
@@ -841,7 +844,7 @@ const totals = useMemo(() => {
           })()} A`} />
           <Stat label="I dimens. (×1.25)" value={`${totals.cutNeed.toFixed(1)} A`} />
           <Stat label="Corte Geral" value={totals.cut} accent />
-          <Stat label="Módulos DIN (+30%)" value={String(totals.modules)} />
+          <Stat label="Módulos DIN (todo o quadro +30%)" value={String(totals.modules)} />
         </div>
         {imb && (
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
@@ -856,6 +859,21 @@ const totals = useMemo(() => {
         )}
       </footer>
 
+      <Dialog open={showReport} onOpenChange={setShowReport}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Relatório PDF</DialogTitle><DialogDescription>Escolha o âmbito e o que pretende imprimir.</DialogDescription></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="flex gap-2">{(["panel", "project"] as const).map(sc => <Button key={sc} size="sm" variant={reportScope === sc ? "default" : "outline"} onClick={() => setReportScope(sc)}>{sc === "panel" ? `Só ${panel.name}` : `Projeto completo (${state.panels.length})`}</Button>)}</div>
+            <div className="grid grid-cols-2 gap-2 rounded-md border border-border p-3">
+              {REPORT_SECTIONS.map(([k, label]) => <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={reportSections.includes(k)} onChange={() => setReportSections(l => l.includes(k) ? l.filter(x => x !== k) : [...l, k])} />{label}</label>)}
+            </div>
+            <div className="flex justify-between gap-2">
+              <div className="flex gap-2"><Button size="sm" variant="ghost" onClick={() => setReportSections(REPORT_SECTIONS.map(x => x[0]))}>Todos</Button><Button size="sm" variant="ghost" onClick={() => setReportSections([])}>Nenhum</Button></div>
+              <Button size="sm" disabled={!reportSections.length} onClick={() => { exportPDF(state.panels, panel.id, { logoDataUrl, project: state.project, sections: reportSections, scope: reportScope }); setShowReport(false); }}>Gerar PDF</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {showConduit && <ConduitCalculator onClose={() => setShowConduit(false)} />}
       </div>
     </div>
