@@ -1,7 +1,14 @@
 # Tasks
-- [x] Replace single-line equipment boxes and breaker symbol with technical electrical symbols.
-- [x] Display conductor type and preserve phase colors.
-- [x] Verify the populated single-line diagram in the browser.
-- [x] Enlarge technical views and simplify workspace commands.
-- [x] Show and assign differential protection in circuit rows.
-- [x] Verify populated diagram, equipment, and circuit protection flows.
+- [x] Earlier: single-line symbols, larger views, RCD in circuit rows, logo, UPS/generator, transformer, DIN front, PDF sections.
+- [ ] Phase balance: last criterion = keep RCD groups on same phase.
+- [ ] Time switch, DST fuse protection and pilot lights symbols.
+- [ ] Busbar data in single-line diagram.
+- [ ] Save asks where to save (file picker).
+- [ ] Collapsible groups in RCD/equipment tabs.
+- [ ] Transformer default kVA not forced to 630.
+- [ ] Generator sized for UPS when present.
+- [ ] Project hierarchy diagram.
+- [ ] Single-line inline edit of clicked circuit.
+- [ ] Quantities: conduit (min 20 mm), cable ×1.4, conduit ×1.3.
+- [ ] Phase balance button more prominent.
+- [ ] Update About.

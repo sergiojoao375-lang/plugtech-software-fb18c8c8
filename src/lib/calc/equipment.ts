@@ -76,7 +76,7 @@ export type BusKind = "Normal" | "Socorro" | "UPS" | "Pente";
 export interface Bus { id: string; name: string; kind: BusKind; circuitIds: string[]; }
 
 export type ControlKind =
-  | "Telerruptor" | "Escada" | "Contactor" | "Crepuscular"
+  | "Telerruptor" | "Escada" | "Contactor" | "Crepuscular" | "Horario" | "Sinalizador"
   | "Termostato" | "ContactorTermico" | "VSD" | "Pressostato" | "DDC";
 
 export interface ControlModule {
@@ -90,6 +90,8 @@ export const CONTROL_INFO: Record<ControlKind, { name: string; prefix: string; g
   Escada: { name: "Automático de escada (temporizador)", prefix: "KA", group: "Comando", din: 1, ins: 1, outs: 1, aux: 0, hint: "Entradas = botoneiras; ligação a 3 ou 4 fios" },
   Contactor: { name: "Contactor modular", prefix: "KM", group: "Comando", din: 2, ins: 1, outs: 2, aux: 1, hint: "Entrada = ordem A1/A2; saídas = polos de potência" },
   Crepuscular: { name: "Interruptor crepuscular", prefix: "KC", group: "Comando", din: 2, ins: 1, outs: 1, aux: 0, hint: "Entrada = sonda exterior; saída = canal para contactor" },
+  Horario: { name: "Interruptor horário (relógio)", prefix: "KH", group: "Comando", din: 2, ins: 0, outs: 1, aux: 0, hint: "Programação diária/semanal; saída = canal para contactor" },
+  Sinalizador: { name: "Sinalizador luminoso (presença de fase)", prefix: "H", group: "Comando", din: 1, ins: 0, outs: 3, aux: 0, hint: "Uma lâmpada por fase L1/L2/L3 (ou 1 em monofásico)" },
   Termostato: { name: "Comando termostático", prefix: "BT", group: "AVAC", din: 1, ins: 1, outs: 1, aux: 0, hint: "Entradas = sondas de temperatura; saídas = contactos" },
   ContactorTermico: { name: "Contactor + relé térmico", prefix: "KM", group: "AVAC", din: 3, ins: 1, outs: 3, aux: 2, hint: "Arranque direto; aux = 95-96 / 97-98 do relé térmico" },
   VSD: { name: "Variador de velocidade (VSD)", prefix: "U", group: "AVAC", din: 6, ins: 4, outs: 2, aux: 1, hint: "DI marcha/defeito, AI 0-10 V/4-20 mA; saídas relé" },
