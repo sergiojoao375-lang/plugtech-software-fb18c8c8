@@ -7,7 +7,7 @@ export const METER_SYMBOL: Record<import("@/lib/calc/equipment").MeterKind, Symb
 };
 
 export const CONTROL_SYMBOL: Record<ControlKind, SymbolKind> = {
-  Telerruptor: "impulse", Escada: "timer", Contactor: "contactor", Crepuscular: "twilight",
+  Telerruptor: "impulse", Escada: "timer", Contactor: "contactor", Crepuscular: "twilight", Horario: "clock", Sinalizador: "lamp",
   Termostato: "thermostat", ContactorTermico: "contactor", VSD: "vsd", Pressostato: "pressure", DDC: "ddc",
 };
 
