@@ -201,7 +201,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
         <Button variant="ghost" size="icon" className="ml-auto" aria-label={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} title={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 /> : <Maximize2 />}</Button>
       </div>
       <div className="single-line-canvas">
-      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length || equip.transformer?.active || equip.meters?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
+      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length || equip.transformer?.active || equip.meters?.length) && <details open className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} rows0={rows0} iccKA={iccKA} /></details>}
       <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="bg-background text-foreground">
         <text x={16} y={24} className="fill-foreground" fontSize={14} fontWeight={700}>{panelName} — Esquema unifilar</text>
         <path d={`M40 34V43 M40 87V${busY}`} stroke="currentColor" fill="none" strokeWidth={2} />
@@ -270,7 +270,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
 }
 
 /* ---------------- Fontes, inversor, MX, DST, UPS, barramentos ---------------- */
-function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainLabel: string; zoom?: number }) {
+function PanelHead({ equip: e, mainLabel, zoom = 1, rows0, iccKA }: { equip: PanelEquip; mainLabel: string; zoom?: number; rows0: Row[]; iccKA: number }) {
   if (!(e.ats || e.ups || e.spd || e.mxFitted || e.buses?.length || e.transformer?.active || e.meters?.length)) return null;
   const meters = (e.meters ?? []);
   const buses = e.buses ?? [];
