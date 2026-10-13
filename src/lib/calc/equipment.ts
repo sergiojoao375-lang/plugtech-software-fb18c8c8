@@ -65,6 +65,8 @@ export function genSet(a: ATS) {
   const running = n === 2 && (a.genMode ?? "Paralelo") === "Paralelo" ? 2 : 1;
   return { kVA, In: sourceIn(kVA, ph), icc: unit.icc * running, count: n };
 }
+/** Gerador mínimo a montante de uma UPS: 1,5 × kVA da UPS (arredondado a 5 kVA). */
+export const genForUps = (upsKVA: number) => Math.ceil(upsKVA * 1.5 / 5) * 5;
 export const ATS_RATINGS = [40, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200];
 /** Calibre automático do inversor Rede/Gerador: ≥ 1,25·Ib do quadro e ≥ In do grupo. */
 export function atsRating(panelIb: number, a: ATS) {
