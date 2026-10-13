@@ -75,9 +75,16 @@ function slug(s: string): string {
   return (s || "projeto").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "projeto";
 }
 
-export function saveProjectFile(state: AppState) {
+export async function saveProjectFile(state: AppState) {
   if (typeof window === "undefined") return;
   const data = JSON.stringify(state, null, 2);
+  const picker = (window as unknown as { showSaveFilePicker?: (o: unknown) => Promise<{ createWritable: () => Promise<{ write: (d: string) => Promise<void>; close: () => Promise<void> }> }> }).showSaveFilePicker;
+  if (picker) {
+    try {
+      const h = await picker({ suggestedName: `${slug(state.project?.obra)}-plugtech.json`, types: [{ description: "Projeto PLUGTECH", accept: { "application/json": [".json"] } }] });
+      const w = await h.createWritable(); await w.write(data); await w.close(); return;
+    } catch (e) { if ((e as Error).name === "AbortError") return; }
+  }
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

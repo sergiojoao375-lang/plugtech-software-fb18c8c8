@@ -232,6 +232,7 @@ export function checkEquipment(rows: Row[], e: PanelEquip, isQGE: boolean, panel
     if (pct > 100) out.push({ level: "critical", msg: `${gName} (In ${g.In.toFixed(0)} A/fase) insuficiente: fase mais carregada ${load.toFixed(0)} A (${pct.toFixed(0)} %)` });
     else if (pct > 80) out.push({ level: "warn", msg: `${gName} a ${pct.toFixed(0)} % da potência (${load.toFixed(0)} / ${g.In.toFixed(0)} A) — recomendado ≤ 80 % para arranques e reserva` });
     else out.push({ level: "info", msg: `${gName}: In ${g.In.toFixed(0)} A/fase, carga ${load.toFixed(0)} A (${pct.toFixed(0)} %), Icc ≈ ${g.icc.toFixed(0)} A` });
+    if (e.ups) { const minG = genForUps(e.ups.kVA); if (g.kVA < minG) out.push({ level: "warn", msg: `Gerador a alimentar UPS ${e.ups.kVA} kVA: usar ≥ ${minG} kVA (1,5 × UPS, harmónicos e recarga de baterias)` }); }
     out.push({ level: "info", msg: `Inversor Rede/Gerador dimensionado automaticamente: ${atsRating(panelIb, e.ats)} A ${ph === 3 ? "4P" : "2P"}` });
     if (g.count === 2) out.push({ level: "info", msg: (e.ats.genMode ?? "Paralelo") === "Paralelo" ? "Grupos em paralelo: prever quadro de sincronismo e partilha de carga" : "Grupos em redundância 1+1: comutação automática entre grupos" });
     const motor = fed.filter(x => x.c.type === "AC" || x.c.type === "UAC").reduce((m, x) => Math.max(m, x.r.ib), 0);

@@ -564,20 +564,23 @@ export async function exportPDF(allPanels: Panel[], activeId: string | null, opt
   y = sectionTitle(doc, "6. Lista global de materiais (todos os quadros)", TOP_MARGIN);
   const matCables = new Map<string, number>();
   const matBreakers = new Map<string, number>();
+  const matConduit = new Map<string, number>();
   panels.forEach(panel => {
     const t = panelTotals(panel);
     panel.circuits.forEach(c => {
       const r = computeCircuit(c, t.ctx);
       const mat = c.material === "Al" ? "Al" : "Cu";
       const k = `${mat} ${r.parallel > 1 ? r.parallel + "×" : ""}${r.section}mm²`;
-      matCables.set(k, (matCables.get(k) || 0) + c.length * r.parallel);
+      matCables.set(k, (matCables.get(k) || 0) + c.length * r.parallel * 1.4);
+      const tube = conduitDiameter(r.section, r.parallel, c.phase);
+      matConduit.set(`Tubo VD Ø${tube} mm`, (matConduit.get(`Tubo VD Ø${tube} mm`) || 0) + c.length * 1.3);
       const b = `Disjuntor ${r.in}A Curva ${r.curve} ${r.icuKA}kA (${c.phase})`;
       matBreakers.set(b, (matBreakers.get(b) || 0) + 1);
     });
     const fEff = feederOf(panel);
     const par = fEff.parallel;
     const fk = `${panel.feederMaterial} ${par > 1 ? par + "×" : ""}${fEff.section}mm² (interligação)`;
-    matCables.set(fk, (matCables.get(fk) || 0) + panel.feederLength * par);
+    matCables.set(fk, (matCables.get(fk) || 0) + panel.feederLength * par * 1.4);
     const gk = `Aparelho de corte geral ${t.mainRating}A (${panel.name})`;
     matBreakers.set(gk, (matBreakers.get(gk) || 0) + 1);
     const addM = (k: string, n = 1) => matBreakers.set(k, (matBreakers.get(k) || 0) + n);
