@@ -215,7 +215,7 @@ export default function CalcStudio() {
   if (!panel) return;
   
   // 1. Executa o algoritmo de equilíbrio do motor de cálculo
-  const balancedCircuits = balancePhases(panel.circuits);
+  const balancedCircuits = balancePhases(panel.circuits, panel.rcds);
   
   // 2. Atualiza o estado global mapeando os painéis e injetando os circuitos equilibrados no painel ativo
   setState(s => ({
@@ -377,7 +377,7 @@ const totals = useMemo(() => {
       <WorkspaceSidebar view={view} onView={v => { setView(v); setShowCircuitForm(false); }} collapsed={sidebarCollapsed} critical={audit.issues.some(x => x.level === "critical")} onAbout={() => setShowAbout(true)} />
       <div className="workspace-main">
       <header className="shrink-0 border-b border-border bg-background">
-        <WorkspaceToolbar panelId={panel.id} panels={state.panels} onPanel={id => setState(s => ({ ...s, activePanelId: id }))} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} settingsOpen={showPanelMgr} onSettings={() => setShowPanelMgr(!showPanelMgr)} onSave={() => saveProjectFile(state)}
+        <WorkspaceToolbar panelId={panel.id} panels={state.panels} onPanel={id => setState(s => ({ ...s, activePanelId: id }))} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} settingsOpen={showPanelMgr} onSettings={() => setShowPanelMgr(!showPanelMgr)} onSave={() => void saveProjectFile(state)}
           projectActions={[
             { label: "Novo quadro", run: createNewPanel },
             { label: "Abrir projeto", run: () => fileInputRef.current?.click() },
@@ -618,8 +618,8 @@ const totals = useMemo(() => {
               </Button>
             )}
             <Button variant="secondary" onClick={doBalance}
-              className="ml-auto rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-2 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">
-              Equilibrar fases
+              className="ml-auto rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90">
+              ⚖ Equilibrar fases{imb ? ` (${imb.pct.toFixed(0)}%)` : ""}
             </Button>
           </div>
         </div>}

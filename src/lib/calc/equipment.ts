@@ -5,7 +5,7 @@ import type { Circuit, CalcResult } from "./engine";
 type Row = { c: Circuit; r: CalcResult };
 
 export type SpdType = "T1" | "T1+2" | "T2" | "T3";
-export interface SPD { type: SpdType; poles: 2 | 4; iKA: number; backupA: number; }
+export interface SPD { type: SpdType; poles: 2 | 4; iKA: number; backupA: number; backupKind?: "Fusivel" | "Disjuntor" | "Integrada"; }
 
 export type MxTrigger = "EMERG" | "SADI" | "COZINHA" | "HVAC";
 export const MX_TRIGGERS: Record<MxTrigger, string> = {
@@ -132,6 +132,8 @@ export function terminals(m: ControlModule): string[] {
     case "Termostato": t.push("L/N: alimentação"); io("T", m.inputs, k => `sonda ${k}`); io("C", m.outputs, k => `contacto ${k} C/NA/NF`); break;
     case "VSD": t.push("L1/L2/L3: entrada", "U/V/W: motor", "PE"); io("DI", m.inputs, k => k === 1 ? "marcha" : k === 2 ? "SADI / paragem" : `entrada ${k}`); io("RO", m.outputs, k => k === 1 ? "defeito" : `relé ${k}`); io("AI", m.aux, () => "referência 0-10 V / 4-20 mA"); break;
     case "Pressostato": io("P", m.inputs, k => `contacto ${k} (em série com o comando)`); io("AL", m.outputs, k => `alarme ${k}`); break;
+    case "Horario": t.push("L/N: alimentação"); io("C", m.outputs, k => `canal ${k} C/NA`); break;
+    case "Sinalizador": io("H", m.outputs, k => `L${k}/N lâmpada`); break;
     case "DDC": t.push("24V/0V: alimentação"); io("DI", m.inputs, k => `entrada ${k}`); io("DO", m.outputs, k => `saída ${k}`); io("AI", m.aux, k => `analógica ${k}`); break;
   }
   return t;

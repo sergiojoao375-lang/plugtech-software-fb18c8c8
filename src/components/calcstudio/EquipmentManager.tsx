@@ -70,7 +70,7 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA,
         {/* Transformador */}
         <div className={card}>
           <div className={h}>🔌 Transformador MT/BT</div>
-          {!e.transformer ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => setTrafo({ active: true, kVA: 630, ucc: 4 })}>+ Adicionar transformador</Button> : (() => { const t = e.transformer; const auto = transformerIccKA(t.kVA, t.ucc); return (
+          {!e.transformer ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => setTrafo((() => { const need = panelIb * 400 * Math.sqrt(3) / 1000 * 1.25; const kVA = TRAFO_KVA.find(v => v >= need) ?? TRAFO_KVA[TRAFO_KVA.length - 1]; return { active: true, kVA, ucc: defaultUcc(kVA) }; })())}>+ Adicionar transformador</Button> : (() => { const t = e.transformer; const auto = transformerIccKA(t.kVA, t.ucc); return (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <label className="flex items-center gap-1 font-semibold"><input type="checkbox" checked={t.active} onChange={ev => setTrafo({ ...t, active: ev.target.checked })} /> Ativo</label>
               <select className={sel} value={t.kVA} onChange={ev => { const k = +ev.target.value; setTrafo({ ...t, kVA: k, ucc: defaultUcc(k) }); }}>{TRAFO_KVA.map(k => <option key={k} value={k}>{k} kVA</option>)}</select>
@@ -84,7 +84,7 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA,
         {/* Fontes e inversor */}
         <div className={card}>
           <div className={h}>⚡ Fontes e inversor (Rede / Gerador)</div>
-          {!e.ats ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ats: { mode: "Auto", genKVA: 100, genCount: 1, phases: tri ? 3 : 1 } })}>+ Adicionar inversor Rede/Gerador</Button> : (() => { const a = e.ats; const g = genSet(a); const pa = (p: Partial<typeof a>) => set({ ats: { ...a, ...p } }); return (
+          {!e.ats ? <Button variant="secondary" size="sm" className={qbtn} onClick={() => set({ ats: { mode: "Auto", genKVA: e.ups ? Math.ceil(e.ups.kVA * 1.5 / 5) * 5 : Math.max(20, Math.ceil(panelIb * 0.4 * 1.25 / 5) * 5), genCount: 1, phases: tri ? 3 : 1 } })}>+ Adicionar inversor Rede/Gerador</Button> : (() => { const a = e.ats; const g = genSet(a); const pa = (p: Partial<typeof a>) => set({ ats: { ...a, ...p } }); return (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <select className={sel} value={a.mode} onChange={ev => pa({ mode: ev.target.value as "Manual" | "Auto" })}>
                 <option value="Auto">Automático (ATS)</option><option value="Manual">Manual I-0-II</option>
@@ -123,7 +123,8 @@ export function EquipmentManager({ equip, rows, onChange, isQGE, panelIb, iccKA,
               </select>
               <select className={sel} value={e.spd.poles} onChange={ev => e.spd && set({ spd: { ...e.spd, poles: +ev.target.value as 2 | 4 } })}><option value={2}>1P+N</option><option value={4}>3P+N</option></select>
               {e.spd.type.startsWith("T1") ? "Iimp" : "Imax"} <input type="number" className={`${sel} w-14`} value={e.spd.iKA} onChange={ev => e.spd && set({ spd: { ...e.spd, iKA: +ev.target.value || 0 } })} /> kA
-              Proteção <select className={sel} value={e.spd.backupA} onChange={ev => e.spd && set({ spd: { ...e.spd, backupA: +ev.target.value } })}>{[20, 25, 32, 40, 50, 63, 80, 125].map(v => <option key={v} value={v}>{v} A</option>)}</select>
+              Proteção <select className={sel} value={e.spd.backupKind ?? "Fusivel"} onChange={ev => e.spd && set({ spd: { ...e.spd, backupKind: ev.target.value as "Fusivel" } })}><option value="Fusivel">Fusível gG</option><option value="Disjuntor">Disjuntor</option><option value="Integrada">Integrada no DST</option></select>
+              <select className={sel} value={e.spd.backupA} onChange={ev => e.spd && set({ spd: { ...e.spd, backupA: +ev.target.value } })}>{[20, 25, 32, 40, 50, 63, 80, 125].map(v => <option key={v} value={v}>{v} A</option>)}</select>
               <Button variant="secondary" size="sm" className="text-destructive" onClick={() => set({ spd: null })}>🗑</Button>
             </div>
           )}

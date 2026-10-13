@@ -305,7 +305,7 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
       <path d={`M${W - 65} 290V308 M${W - 65} 352V358`} stroke="currentColor" fill="none" />
       <ElectricalSymbol kind="spd" x={W - 65} y={330} /><ElectricalSymbol kind="earth" x={W - 65} y={380} />
       <text x={W - 88} y={405} textAnchor="end" fontSize={10} fill="currentColor">DST {e.spd.type} · {e.spd.poles}P · {e.spd.iKA} kA</text>
-      <text x={W - 88} y={419} textAnchor="end" fontSize={9} className="fill-muted-foreground">Proteção a montante {e.spd.backupA} A · PE</text>
+      <text x={W - 88} y={419} textAnchor="end" fontSize={9} className="fill-muted-foreground">Proteção {e.spd.backupKind === "Disjuntor" ? "disjuntor" : e.spd.backupKind === "Integrada" ? "integrada" : "fusível gG"} {e.spd.backupKind === "Integrada" ? "" : `${e.spd.backupA} A`} · PE</text>
     </g>}
     {meters.map((m, i) => <g key={m.id} className="text-brand-green"><ElectricalSymbol kind={METER_SYMBOL[m.kind]} x={W - 470 - i * 62} y={240} /><text x={W - 470 - i * 62} y={276} textAnchor="middle" fontSize={8} fill="currentColor">{m.label}{m.qty > 1 ? ` ×${m.qty}` : ""}</text></g>)}
     {buses.map((b, i) => {
