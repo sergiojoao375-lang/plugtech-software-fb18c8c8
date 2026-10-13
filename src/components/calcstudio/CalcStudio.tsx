@@ -1063,6 +1063,14 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
+          <div className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
+            <img src="logo.png" alt="PLUGTECH" width={48} height={48} className="h-12 w-12 rounded-lg object-contain" />
+            <div className="text-xs text-muted-foreground">
+              <div className="font-semibold text-foreground">Normas: RTIEBT · IEC 60364 · IEC 60898 / 60947 · IEC 61439 · IEC 61008/61009 · IEC 61643</div>
+              Módulos: circuitos, diferenciais, equipamento (transformador, gerador 1 ou 2 grupos, UPS mono/tri, DST com fusível/disjuntor, MX, medição TI/TT/analisador, Modbus/KNX, interruptor horário, sinalizadores), unifilar com dados dos barramentos, frontal DIN, curvas I-t, auditoria, condensadores, relatório PDF por secções.
+              <div className="mt-1">Equilíbrio de fases: potência por fase (LPT + refinamento) e, como último critério, agrupar os circuitos de cada diferencial na mesma fase. Quantidades: cabo × 1,4, tubagem × 1,3 (Ø mín. 20 mm). Gerador com UPS ≥ 1,5 × kVA da UPS.</div>
+            </div>
+          </div>
           {ABOUT_TOPICS.map(t => (
             <div key={t.title} className="rounded-md border border-border bg-card p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
