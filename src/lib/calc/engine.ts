@@ -300,7 +300,7 @@ export function feederDeltaU(params: {
 
 // --minha--Equilíbrio de fases automático (greedy: maior carga -> fase com menor soma)
 // --minha--As cargas trifásicas dividem-se igualmente pelas 3 fases (P/3 em cada).
-//--minha--export function balancePhases(circuits: Circuit[]): Circuit[] {
+//--minha--export function balancePhases(circuits: Circuit[], rcds?: Array<{ poles: number; circuitIds: string[] }>): Circuit[] {
 //--minha--  const monos = circuits.filter(c => c.phase === "Mono").sort((a, b) => b.power - a.power);
 // --minha-- const triPerPhase = circuits
 // --minha--   .filter(c => c.phase === "Tri")
@@ -317,7 +317,7 @@ export function feederDeltaU(params: {
 
 // Equilíbrio de fases — heurística LPT (Longest Processing Time) + refinamento local.
 // Complexidade ~O(n log n), suporta centenas de circuitos sem travar o software.
-export function balancePhases(circuits: Circuit[]): Circuit[] {
+export function balancePhases(circuits: Circuit[], rcds?: Array<{ poles: number; circuitIds: string[] }>): Circuit[] {
   const phases: Array<"L1" | "L2" | "L3"> = ["L1", "L2", "L3"];
   const monos = circuits.filter(c => c.phase === "Mono");
   const tris = circuits.filter(c => c.phase === "Tri");
@@ -360,6 +360,40 @@ export function balancePhases(circuits: Circuit[]): Circuit[] {
     const w = monos[bestIdx].power;
     sums[maxP] -= w; sums[minP] += w;
     assign[bestIdx] = minP;
+  }
+
+  // 3) Último critério: agrupar os circuitos de cada diferencial na mesma fase,
+  //    por trocas de circuitos de potência idêntica/semelhante que não pioram o desequilíbrio.
+  if (rcds?.length) {
+    const total = phases.reduce((a, p) => a + sums[p], 0) || 1;
+    const gapOf = () => Math.max(...phases.map(p => sums[p])) - Math.min(...phases.map(p => sums[p]));
+    const groupOf = new Map<string, number>();
+    rcds.forEach((d, gi) => d.circuitIds.forEach(id => groupOf.set(id, gi)));
+    const idx = new Map(monos.map((c, i) => [c.id, i]));
+    for (let pass = 0; pass < 3; pass++) for (const d of rcds) {
+      const mine = d.circuitIds.map(id => idx.get(id)).filter((i): i is number => i !== undefined);
+      if (mine.length < 2) continue;
+      const w: Record<string, number> = { L1: 0, L2: 0, L3: 0 };
+      mine.forEach(i => { w[assign[i]] += monos[i].power; });
+      const target = phases.reduce((a, b) => (w[a] >= w[b] ? a : b));
+      for (const i of mine) {
+        if (assign[i] === target) continue;
+        const from = assign[i], base = gapOf();
+        let best = -1, bestGap = base + total * 0.02;
+        for (let j = 0; j < monos.length; j++) {
+          if (assign[j] !== target || groupOf.get(monos[j].id) === groupOf.get(monos[i].id)) continue;
+          const dP = monos[i].power - monos[j].power;
+          sums[from] -= dP; sums[target] += dP;
+          const g = gapOf();
+          sums[from] += dP; sums[target] -= dP;
+          if (g <= bestGap) { bestGap = g; best = j; }
+        }
+        if (best < 0) continue;
+        const dP = monos[i].power - monos[best].power;
+        sums[from] -= dP; sums[target] += dP;
+        assign[best] = from; assign[i] = target;
+      }
+    }
   }
 
   const byId = new Map<string, "L1" | "L2" | "L3">();

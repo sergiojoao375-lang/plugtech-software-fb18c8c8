@@ -256,6 +256,13 @@ function childrenOf(panels: Panel[], panel: Panel): Panel[] {
 }
 
 // ============================ RELATÓRIO PRINCIPAL ============================
+/** Diâmetro de tubo (mm) por secção; mínimo 20 mm. */
+export function conduitDiameter(section: number, parallel = 1, phase: string = "Mono"): number {
+  const steps: [number, number][] = [[2.5, 20], [6, 25], [16, 32], [35, 40], [70, 50], [150, 63], [Infinity, 75]];
+  const s = section * (phase === "Tri" ? 1.6 : 1) * parallel;
+  return Math.max(20, steps.find(([max]) => s <= max)![1]);
+}
+
 export type ReportSection = "criterios" | "hierarquia" | "cargas" | "diferenciais" | "equipamento" | "unifilar" | "frontal" | "selectividade" | "condensadores" | "auditoria" | "quantidades" | "assinaturas";
 export const REPORT_SECTIONS: Array<[ReportSection, string]> = [
   ["criterios", "Critérios de cálculo"], ["hierarquia", "Hierarquia de quadros"], ["cargas", "Mapa de cargas"],
@@ -600,12 +607,21 @@ export async function exportPDF(allPanels: Panel[], activeId: string | null, opt
   autoTable(doc, {
     ...tableBase(9),
     startY: y,
-    head: [["Cabo", "Metros"]],
+    head: [["Cabo (comprimento × 1,4)", "Metros"]],
     body: Array.from(matCables.entries()).map(([k, v]) => [k, v.toFixed(1)]),
     columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
     margin: { left: MARGIN, right: MARGIN, top: TOP_MARGIN },
     showHead: "everyPage",
     didDrawPage: () => header(doc, "6. Lista Global de Materiais", logo),
+  });
+  autoTable(doc, {
+    ...tableBase(9),
+    // @ts-ignore
+    startY: (doc as any).lastAutoTable.finalY + 6,
+    head: [["Tubagem (comprimento × 1,3, Ø mín. 20 mm)", "Metros"]],
+    body: Array.from(matConduit.entries()).map(([k, v]) => [k, v.toFixed(1)]),
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+    margin: { left: MARGIN, right: MARGIN, top: TOP_MARGIN },
   });
   autoTable(doc, {
     ...tableBase(9),
