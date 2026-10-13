@@ -215,7 +215,7 @@ export default function CalcStudio() {
   if (!panel) return;
   
   // 1. Executa o algoritmo de equilíbrio do motor de cálculo
-  const balancedCircuits = balancePhases(panel.circuits);
+  const balancedCircuits = balancePhases(panel.circuits, panel.rcds);
   
   // 2. Atualiza o estado global mapeando os painéis e injetando os circuitos equilibrados no painel ativo
   setState(s => ({
@@ -377,7 +377,7 @@ const totals = useMemo(() => {
       <WorkspaceSidebar view={view} onView={v => { setView(v); setShowCircuitForm(false); }} collapsed={sidebarCollapsed} critical={audit.issues.some(x => x.level === "critical")} onAbout={() => setShowAbout(true)} />
       <div className="workspace-main">
       <header className="shrink-0 border-b border-border bg-background">
-        <WorkspaceToolbar panelId={panel.id} panels={state.panels} onPanel={id => setState(s => ({ ...s, activePanelId: id }))} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} settingsOpen={showPanelMgr} onSettings={() => setShowPanelMgr(!showPanelMgr)} onSave={() => saveProjectFile(state)}
+        <WorkspaceToolbar panelId={panel.id} panels={state.panels} onPanel={id => setState(s => ({ ...s, activePanelId: id }))} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} settingsOpen={showPanelMgr} onSettings={() => setShowPanelMgr(!showPanelMgr)} onSave={() => void saveProjectFile(state)}
           projectActions={[
             { label: "Novo quadro", run: createNewPanel },
             { label: "Abrir projeto", run: () => fileInputRef.current?.click() },
@@ -618,8 +618,8 @@ const totals = useMemo(() => {
               </Button>
             )}
             <Button variant="secondary" onClick={doBalance}
-              className="ml-auto rounded-md border border-[color:var(--brand-blue)]/60 px-3 py-2 text-sm text-[color:var(--brand-blue)] hover:bg-[color:var(--brand-blue)]/10">
-              Equilibrar fases
+              className="ml-auto rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90">
+              ⚖ Equilibrar fases{imb ? ` (${imb.pct.toFixed(0)}%)` : ""}
             </Button>
           </div>
         </div>}
@@ -649,7 +649,7 @@ const totals = useMemo(() => {
       <main className="workspace-content flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         {view !== "circuitos" && (
           <section className={`technical-view min-h-0 min-w-0 flex-1 ${view === "unifilar" ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
-            {view === "unifilar" && <><SingleLineDiagram rows={computed} rcds={panel.rcds ?? []} equip={panel.equip ?? {}} tags={circuitTags(panel.equip ?? {})} panelName={panel.name} mainLabel={totals.cut} onPick={c => { editCircuit(c); setView("circuitos"); }} /><DiagramCircuitList rows={computed} rcds={panel.rcds ?? []} onRcds={rcds => updatePanel({ rcds })} onPick={c => { editCircuit(c); setView("circuitos"); }} onAdd={() => { setView("circuitos"); setDraft(emptyDraft()); setShowCircuitForm(true); focusName(); }} /></>}
+            {view === "unifilar" && <><SingleLineDiagram rows={computed} iccKA={panelIccKA(panel)} rcds={panel.rcds ?? []} equip={panel.equip ?? {}} tags={circuitTags(panel.equip ?? {})} panelName={panel.name} mainLabel={totals.cut} onPick={c => { editCircuit(c); setView("circuitos"); }} /><DiagramCircuitList rows={computed} rcds={panel.rcds ?? []} onRcds={rcds => updatePanel({ rcds })} onPick={c => { editCircuit(c); setView("circuitos"); }} onAdd={() => { setView("circuitos"); setDraft(emptyDraft()); setShowCircuitForm(true); focusName(); }} /></>}
             {view === "equipamento" && <EquipmentManager equip={panel.equip ?? {}} rows={computed} isQGE={panel.panelKind === "QGE"} panelIb={totals.ib} iccKA={panelIccKA(panel)} tri={panel.phase === "Tri"} onOriginKA={k => updatePanel({ iccOriginKA: k })} onChange={equip => updatePanel({ equip })} />}
             {view === "diferenciais" && <RCDManager rcds={panel.rcds ?? []} rows={computed} onChange={rcds => updatePanel({ rcds })} />}
             {view === "frontal" && <DinFrontView rows={computed} mainPoles={panel.phase === "Tri" ? 4 : 2} equip={panel.equip ?? {}} rcds={panel.rcds ?? []} mainRating={totals.mainRating || 63} panelName={panel.name} />}
@@ -1063,6 +1063,14 @@ function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
+          <div className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
+            <img src="logo.png" alt="PLUGTECH" width={48} height={48} className="h-12 w-12 rounded-lg object-contain" />
+            <div className="text-xs text-muted-foreground">
+              <div className="font-semibold text-foreground">Normas: RTIEBT · IEC 60364 · IEC 60898 / 60947 · IEC 61439 · IEC 61008/61009 · IEC 61643</div>
+              Módulos: circuitos, diferenciais, equipamento (transformador, gerador 1 ou 2 grupos, UPS mono/tri, DST com fusível/disjuntor, MX, medição TI/TT/analisador, Modbus/KNX, interruptor horário, sinalizadores), unifilar com dados dos barramentos, frontal DIN, curvas I-t, auditoria, condensadores, relatório PDF por secções.
+              <div className="mt-1">Equilíbrio de fases: potência por fase (LPT + refinamento) e, como último critério, agrupar os circuitos de cada diferencial na mesma fase. Quantidades: cabo × 1,4, tubagem × 1,3 (Ø mín. 20 mm). Gerador com UPS ≥ 1,5 × kVA da UPS.</div>
+            </div>
+          </div>
           {ABOUT_TOPICS.map(t => (
             <div key={t.title} className="rounded-md border border-border bg-card p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

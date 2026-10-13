@@ -8,7 +8,7 @@ import { capacitorBank } from "@/lib/calc/capacitor";
 import { curvePoints, selectivityLimit, type CurveKind } from "@/lib/calc/curves";
 import type { RCD } from "@/lib/calc/rcd";
 import type { PanelEquip } from "@/lib/calc/equipment";
-import { genSet, transformerOriginKA, dinLayout, enclosureFor, type DinItem } from "@/lib/calc/equipment";
+import { genSet, sizeBusbar, busIb, transformerOriginKA, dinLayout, enclosureFor, type DinItem } from "@/lib/calc/equipment";
 import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND, METER_SYMBOL } from "./ElectricalSymbol";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
@@ -176,7 +176,7 @@ export function CapacitorBank({ pW, cosNow }: { pW: number; cosNow: number }) {
 
 /* ---------------- Esquema unifilar ---------------- */
 const PH: Record<string, string> = { L1: "var(--phase-l1)", L2: "var(--phase-l2)", L3: "var(--phase-l3)" };
-export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {} }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; tags?: Map<string, string[]> }) {
+export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {}, iccKA = 6 }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; iccKA?: number; tags?: Map<string, string[]> }) {
   const [zoom, setZoom] = useState(1.25);
   const [expanded, setExpanded] = useState(false);
   const idx = new Map(rows0.map((x, i) => [x.c.id, i]));
@@ -201,7 +201,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
         <Button variant="ghost" size="icon" className="ml-auto" aria-label={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} title={expanded ? "Sair da vista ampliada" : "Expandir área do unifilar"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 /> : <Maximize2 />}</Button>
       </div>
       <div className="single-line-canvas">
-      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length || equip.transformer?.active || equip.meters?.length) && <details className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} /></details>}
+      {(equip.ats || equip.ups || equip.spd || equip.mxFitted || equip.buses?.length || equip.transformer?.active || equip.meters?.length) && <details open className="mb-4 border-b border-border pb-3"><summary className="cursor-pointer text-sm font-semibold text-brand-blue">Alimentação e equipamento do quadro</summary><PanelHead equip={equip} mainLabel={mainLabel} zoom={zoom} rows0={rows0} iccKA={iccKA} /></details>}
       <svg width={W * zoom} height={H * zoom} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Esquema unifilar de ${panelName}`} className="bg-background text-foreground">
         <text x={16} y={24} className="fill-foreground" fontSize={14} fontWeight={700}>{panelName} — Esquema unifilar</text>
         <path d={`M40 34V43 M40 87V${busY}`} stroke="currentColor" fill="none" strokeWidth={2} />
@@ -270,7 +270,7 @@ export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, r
 }
 
 /* ---------------- Fontes, inversor, MX, DST, UPS, barramentos ---------------- */
-function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainLabel: string; zoom?: number }) {
+function PanelHead({ equip: e, mainLabel, zoom = 1, rows0, iccKA }: { equip: PanelEquip; mainLabel: string; zoom?: number; rows0: Row[]; iccKA: number }) {
   if (!(e.ats || e.ups || e.spd || e.mxFitted || e.buses?.length || e.transformer?.active || e.meters?.length)) return null;
   const meters = (e.meters ?? []);
   const buses = e.buses ?? [];
@@ -305,7 +305,7 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
       <path d={`M${W - 65} 290V308 M${W - 65} 352V358`} stroke="currentColor" fill="none" />
       <ElectricalSymbol kind="spd" x={W - 65} y={330} /><ElectricalSymbol kind="earth" x={W - 65} y={380} />
       <text x={W - 88} y={405} textAnchor="end" fontSize={10} fill="currentColor">DST {e.spd.type} · {e.spd.poles}P · {e.spd.iKA} kA</text>
-      <text x={W - 88} y={419} textAnchor="end" fontSize={9} className="fill-muted-foreground">Proteção a montante {e.spd.backupA} A · PE</text>
+      <text x={W - 88} y={419} textAnchor="end" fontSize={9} className="fill-muted-foreground">Proteção {e.spd.backupKind === "Disjuntor" ? "disjuntor" : e.spd.backupKind === "Integrada" ? "integrada" : "fusível gG"} {e.spd.backupKind === "Integrada" ? "" : `${e.spd.backupA} A`} · PE</text>
     </g>}
     {meters.map((m, i) => <g key={m.id} className="text-brand-green"><ElectricalSymbol kind={METER_SYMBOL[m.kind]} x={W - 470 - i * 62} y={240} /><text x={W - 470 - i * 62} y={276} textAnchor="middle" fontSize={8} fill="currentColor">{m.label}{m.qty > 1 ? ` ×${m.qty}` : ""}</text></g>)}
     {buses.map((b, i) => {
@@ -313,7 +313,8 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
       return <g key={b.id} className={b.kind === "UPS" ? "text-destructive" : b.kind === "Socorro" ? "text-warning" : "text-brand-blue"}>
         <path d={b.kind === "UPS" && e.ups ? `M${W - 200} 250V275H${x}V284 M${x} 296V330 M${x - 8} 296Q${x} 280 ${x + 8} 296 M${x - 55} 330H${x + 55}` : `M${x} 290V330 M${x - 55} 330H${x + 55}`} stroke="currentColor" fill="none" strokeWidth={3} />
         <text x={x} y={350} fontSize={9} textAnchor="middle" fill="currentColor" fontWeight={700}>{b.name.slice(0, 26)}</text>
-        <text x={x} y={366} fontSize={9} textAnchor="middle" className="fill-muted-foreground">{b.circuitIds.length} circuitos</text>
+        <text x={x} y={366} fontSize={9} textAnchor="middle" className="fill-muted-foreground">{b.circuitIds.length} circuitos · Ib {busIb(b, rows0).toFixed(0)} A</text>
+        {(() => { const sb = sizeBusbar(busIb(b, rows0), iccKA); return <text x={x} y={380} fontSize={9} textAnchor="middle" className="fill-muted-foreground">Cu {sb.bar} mm · Iz {sb.iz} A · Ipk {sb.ipkKA} kA</text>; })()}
       </g>;
     })}
   </svg>;

@@ -5,7 +5,7 @@ import type { Circuit, CalcResult } from "./engine";
 type Row = { c: Circuit; r: CalcResult };
 
 export type SpdType = "T1" | "T1+2" | "T2" | "T3";
-export interface SPD { type: SpdType; poles: 2 | 4; iKA: number; backupA: number; }
+export interface SPD { type: SpdType; poles: 2 | 4; iKA: number; backupA: number; backupKind?: "Fusivel" | "Disjuntor" | "Integrada"; }
 
 export type MxTrigger = "EMERG" | "SADI" | "COZINHA" | "HVAC";
 export const MX_TRIGGERS: Record<MxTrigger, string> = {
@@ -65,6 +65,8 @@ export function genSet(a: ATS) {
   const running = n === 2 && (a.genMode ?? "Paralelo") === "Paralelo" ? 2 : 1;
   return { kVA, In: sourceIn(kVA, ph), icc: unit.icc * running, count: n };
 }
+/** Gerador mínimo a montante de uma UPS: 1,5 × kVA da UPS (arredondado a 5 kVA). */
+export const genForUps = (upsKVA: number) => Math.ceil(upsKVA * 1.5 / 5) * 5;
 export const ATS_RATINGS = [40, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200];
 /** Calibre automático do inversor Rede/Gerador: ≥ 1,25·Ib do quadro e ≥ In do grupo. */
 export function atsRating(panelIb: number, a: ATS) {
@@ -132,6 +134,8 @@ export function terminals(m: ControlModule): string[] {
     case "Termostato": t.push("L/N: alimentação"); io("T", m.inputs, k => `sonda ${k}`); io("C", m.outputs, k => `contacto ${k} C/NA/NF`); break;
     case "VSD": t.push("L1/L2/L3: entrada", "U/V/W: motor", "PE"); io("DI", m.inputs, k => k === 1 ? "marcha" : k === 2 ? "SADI / paragem" : `entrada ${k}`); io("RO", m.outputs, k => k === 1 ? "defeito" : `relé ${k}`); io("AI", m.aux, () => "referência 0-10 V / 4-20 mA"); break;
     case "Pressostato": io("P", m.inputs, k => `contacto ${k} (em série com o comando)`); io("AL", m.outputs, k => `alarme ${k}`); break;
+    case "Horario": t.push("L/N: alimentação"); io("C", m.outputs, k => `canal ${k} C/NA`); break;
+    case "Sinalizador": io("H", m.outputs, k => `L${k}/N lâmpada`); break;
     case "DDC": t.push("24V/0V: alimentação"); io("DI", m.inputs, k => `entrada ${k}`); io("DO", m.outputs, k => `saída ${k}`); io("AI", m.aux, k => `analógica ${k}`); break;
   }
   return t;
@@ -230,6 +234,7 @@ export function checkEquipment(rows: Row[], e: PanelEquip, isQGE: boolean, panel
     if (pct > 100) out.push({ level: "critical", msg: `${gName} (In ${g.In.toFixed(0)} A/fase) insuficiente: fase mais carregada ${load.toFixed(0)} A (${pct.toFixed(0)} %)` });
     else if (pct > 80) out.push({ level: "warn", msg: `${gName} a ${pct.toFixed(0)} % da potência (${load.toFixed(0)} / ${g.In.toFixed(0)} A) — recomendado ≤ 80 % para arranques e reserva` });
     else out.push({ level: "info", msg: `${gName}: In ${g.In.toFixed(0)} A/fase, carga ${load.toFixed(0)} A (${pct.toFixed(0)} %), Icc ≈ ${g.icc.toFixed(0)} A` });
+    if (e.ups) { const minG = genForUps(e.ups.kVA); if (g.kVA < minG) out.push({ level: "warn", msg: `Gerador a alimentar UPS ${e.ups.kVA} kVA: usar ≥ ${minG} kVA (1,5 × UPS, harmónicos e recarga de baterias)` }); }
     out.push({ level: "info", msg: `Inversor Rede/Gerador dimensionado automaticamente: ${atsRating(panelIb, e.ats)} A ${ph === 3 ? "4P" : "2P"}` });
     if (g.count === 2) out.push({ level: "info", msg: (e.ats.genMode ?? "Paralelo") === "Paralelo" ? "Grupos em paralelo: prever quadro de sincronismo e partilha de carga" : "Grupos em redundância 1+1: comutação automática entre grupos" });
     const motor = fed.filter(x => x.c.type === "AC" || x.c.type === "UAC").reduce((m, x) => Math.max(m, x.r.ib), 0);
