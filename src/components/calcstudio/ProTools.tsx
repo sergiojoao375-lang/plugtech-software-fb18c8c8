@@ -8,7 +8,7 @@ import { capacitorBank } from "@/lib/calc/capacitor";
 import { curvePoints, selectivityLimit, type CurveKind } from "@/lib/calc/curves";
 import type { RCD } from "@/lib/calc/rcd";
 import type { PanelEquip } from "@/lib/calc/equipment";
-import { genSet, transformerOriginKA, dinLayout, enclosureFor, type DinItem } from "@/lib/calc/equipment";
+import { genSet, sizeBusbar, busIb, transformerOriginKA, dinLayout, enclosureFor, type DinItem } from "@/lib/calc/equipment";
 import { ElectricalSymbol, CONTROL_SYMBOL, SYMBOL_LEGEND, METER_SYMBOL } from "./ElectricalSymbol";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
@@ -176,7 +176,7 @@ export function CapacitorBank({ pW, cosNow }: { pW: number; cosNow: number }) {
 
 /* ---------------- Esquema unifilar ---------------- */
 const PH: Record<string, string> = { L1: "var(--phase-l1)", L2: "var(--phase-l2)", L3: "var(--phase-l3)" };
-export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {} }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; tags?: Map<string, string[]> }) {
+export function SingleLineDiagram({ rows: rows0, panelName, mainLabel, onPick, rcds = [], equip = {}, iccKA = 6 }: { rows: Row[]; panelName: string; mainLabel: string; onPick: (c: Circuit) => void; rcds?: RCD[]; equip?: PanelEquip; iccKA?: number; tags?: Map<string, string[]> }) {
   const [zoom, setZoom] = useState(1.25);
   const [expanded, setExpanded] = useState(false);
   const idx = new Map(rows0.map((x, i) => [x.c.id, i]));
@@ -313,7 +313,8 @@ function PanelHead({ equip: e, mainLabel, zoom = 1 }: { equip: PanelEquip; mainL
       return <g key={b.id} className={b.kind === "UPS" ? "text-destructive" : b.kind === "Socorro" ? "text-warning" : "text-brand-blue"}>
         <path d={b.kind === "UPS" && e.ups ? `M${W - 200} 250V275H${x}V284 M${x} 296V330 M${x - 8} 296Q${x} 280 ${x + 8} 296 M${x - 55} 330H${x + 55}` : `M${x} 290V330 M${x - 55} 330H${x + 55}`} stroke="currentColor" fill="none" strokeWidth={3} />
         <text x={x} y={350} fontSize={9} textAnchor="middle" fill="currentColor" fontWeight={700}>{b.name.slice(0, 26)}</text>
-        <text x={x} y={366} fontSize={9} textAnchor="middle" className="fill-muted-foreground">{b.circuitIds.length} circuitos</text>
+        <text x={x} y={366} fontSize={9} textAnchor="middle" className="fill-muted-foreground">{b.circuitIds.length} circuitos · Ib {busIb(b, rows0).toFixed(0)} A</text>
+        {(() => { const sb = sizeBusbar(busIb(b, rows0), iccKA); return <text x={x} y={380} fontSize={9} textAnchor="middle" className="fill-muted-foreground">Cu {sb.bar} mm · Iz {sb.iz} A · Ipk {sb.ipkKA} kA</text>; })()}
       </g>;
     })}
   </svg>;

@@ -1,4 +1,5 @@
 // Gestão de diferenciais: criar DR, escolher circuitos protegidos e ver a verificação
+import { useState } from "react";
 import type { Circuit, CalcResult } from "@/lib/calc/engine";
 import { checkRCD, RCD_RATINGS, RCD_SENS, type RCD } from "@/lib/calc/rcd";
 
@@ -6,6 +7,7 @@ type Row = { c: Circuit; r: CalcResult };
 const sel = "rounded border border-border bg-[color:var(--surface-2)] px-1 py-1 text-xs";
 
 export function RCDManager({ rcds, rows, onChange }: { rcds: RCD[]; rows: Row[]; onChange: (r: RCD[]) => void }) {
+  const [closed, setClosed] = useState<Record<string, boolean>>({});
   const add = () => {
     const anyTri = rows.some(x => x.c.phase === "Tri");
     onChange([...rcds, { id: crypto.randomUUID(), label: `DR${rcds.length + 1}`, inA: 40, iAnmA: 30, poles: anyTri ? 4 : 2, kind: "A", circuitIds: [] }]);
@@ -30,6 +32,7 @@ export function RCDManager({ rcds, rows, onChange }: { rcds: RCD[]; rows: Row[];
         return (
           <div key={d.id} className={`rounded-lg border p-3 ${k.ok ? (k.warnings.length ? "border-warning/60" : "border-[color:var(--brand-green)]/60") : "border-destructive/60"} bg-card`}>
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button aria-expanded={!closed[d.id]} aria-label={`Mostrar circuitos de ${d.label}`} className="w-5 text-muted-foreground" onClick={() => setClosed(c => ({ ...c, [d.id]: !c[d.id] }))}>{closed[d.id] ? "▸" : "▾"}</button>
               <input value={d.label} onChange={e => patch(d.id, { label: e.target.value })} className={`${sel} w-28 font-bold`} />
               <select className={sel} value={d.inA} onChange={e => patch(d.id, { inA: +e.target.value })}>{RCD_RATINGS.map(v => <option key={v} value={v}>{v} A</option>)}</select>
               <select className={sel} value={d.iAnmA} onChange={e => patch(d.id, { iAnmA: +e.target.value })}>{RCD_SENS.map(v => <option key={v} value={v}>{v} mA</option>)}</select>
@@ -40,7 +43,7 @@ export function RCDManager({ rcds, rows, onChange }: { rcds: RCD[]; rows: Row[];
               {k.suggestion && <button className="rounded border border-border px-2 py-0.5" onClick={() => patch(d.id, { inA: k.suggestion! })}>Aplicar {k.suggestion} A</button>}
               <button className="text-destructive" onClick={() => onChange(rcds.filter(x => x.id !== d.id))}>🗑</button>
             </div>
-            {(k.issues.length > 0 || k.warnings.length > 0) && (
+            {!closed[d.id] && <>{(k.issues.length > 0 || k.warnings.length > 0) && (
               <ul className="mt-2 space-y-0.5 text-xs">
                 {k.issues.map((m, i) => <li key={i} className="text-destructive">✗ {m}</li>)}
                 {k.warnings.map((m, i) => <li key={i} className="text-warning">⚠ {m}</li>)}
@@ -58,7 +61,8 @@ export function RCDManager({ rcds, rows, onChange }: { rcds: RCD[]; rows: Row[];
                   </label>
                 );
               })}
-            </div>
+            </div></>}
+            {closed[d.id] && <div className="mt-1 text-[11px] text-muted-foreground">{d.circuitIds.length} circuito(s) · {d.circuitIds.map(id => rows.find(x => x.c.id === id)?.c.name).filter(Boolean).join(", ")}</div>}
           </div>
         );
       })}
