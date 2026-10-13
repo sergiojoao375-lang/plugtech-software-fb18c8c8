@@ -1,14 +1,14 @@
 # Tasks
 - [x] Earlier: single-line symbols, larger views, RCD in circuit rows, logo, UPS/generator, transformer, DIN front, PDF sections.
-- [ ] Phase balance: last criterion = keep RCD groups on same phase.
-- [ ] Time switch, DST fuse protection and pilot lights symbols.
-- [ ] Busbar data in single-line diagram.
-- [ ] Save asks where to save (file picker).
-- [ ] Collapsible groups in RCD/equipment tabs.
-- [ ] Transformer default kVA not forced to 630.
-- [ ] Generator sized for UPS when present.
+- [x] Phase balance: last criterion = keep RCD groups on same phase.
+- [x] Time switch, DST fuse protection and pilot lights symbols.
+- [x] Busbar data in single-line diagram.
+- [x] Save asks where to save (file picker).
+- [~] Collapsible groups: RCD tab done; equipment/control tab pending.
+- [x] Transformer default kVA not forced to 630.
+- [x] Generator sized for UPS when present.
 - [ ] Project hierarchy diagram.
 - [ ] Single-line inline edit of clicked circuit.
-- [ ] Quantities: conduit (min 20 mm), cable ×1.4, conduit ×1.3.
-- [ ] Phase balance button more prominent.
-- [ ] Update About.
+- [x] Quantities: conduit (min 20 mm), cable ×1.4, conduit ×1.3.
+- [x] Phase balance button more prominent.
+- [x] Update About.
